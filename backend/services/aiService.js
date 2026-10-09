@@ -12,7 +12,7 @@ async function callAI(prompt) {
         try {
             console.log("Attempting request with Google Gemini...");
             const response = await axios.post(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
                 {
                     contents: [{ parts: [{ text: prompt }] }]
                 },
@@ -22,7 +22,7 @@ async function callAI(prompt) {
             const aiText = response.data.candidates[0].content.parts[0].text;
             return { provider: 'Gemini', text: aiText };
         } catch (error) {
-            console.log("Gemini failed or hit limit, falling back...", error.response?.data || error.message);
+            console.error("Gemini detailed error:", error.response?.data || error.message);
             lastError = error;
         }
     }
@@ -48,7 +48,7 @@ async function callAI(prompt) {
             const aiText = response.data.choices[0].message.content;
             return { provider: 'Groq', text: aiText };
         } catch (error) {
-            console.log("Groq failed or hit limit, falling back...", error.response?.data || error.message);
+            console.error("Groq detailed error:", error.response?.data || error.message);
             lastError = error;
         }
     }
