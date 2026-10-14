@@ -7,11 +7,17 @@ const PORT = process.env.PORT || 5000;
 
 app.use(express.json());
 
+// Test route
+app.get('/', (req, res) => {
+    res.json({ message: 'Pocket Me backend is running successfully!' });
+});
+
 // Lists the models available for the dropdown
 app.get('/api/models', (req, res) => {
     res.json(getModels().map((m) => ({ id: m.id, label: m.label })));
 });
 
+// AI chat route. The frontend sends the prompt, the model you picked, and the fallback setting.
 app.post('/api/chat', async (req, res) => {
     try {
         const { prompt, modelId, autoFallback } = req.body;
