@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
+import Login from './Login';
 
 function App() {
+  // Login state
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Chat state
   const [messages, setMessages] = useState([
     { sender: 'ai', text: 'Hello Anshika! Pocket Me is ready.' }
   ]);
@@ -12,18 +19,35 @@ function App() {
   const [selectedModel, setSelectedModel] = useState('');
   const [autoFallback, setAutoFallback] = useState(false);
 
-  // When the page loads, ask the backend which models are available.
+  // Check for an existing login when the page opens, and listen for login or logout.
   useEffect(() => {
-    fetch('/api/models')
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthLoading(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  // Load the model list once we are logged in. The token proves who we are.
+  useEffect(() => {
+    if (!session) return;
+    fetch('/api/models', {
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    })
       .then((res) => res.json())
       .then((list) => {
-        setModels(list);
-        if (list.length > 0) setSelectedModel(list[0].id);
+        if (Array.isArray(list)) {
+          setModels(list);
+          if (list.length > 0) setSelectedModel(list[0].id);
+        }
       })
       .catch(() => {
         setMessages((prev) => [...prev, { sender: 'ai', text: 'Could not load the model list. Is the backend running?' }]);
       });
-  }, []);
+  }, [session]);
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -37,7 +61,10 @@ function App() {
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({
           prompt: userMessage,
           modelId: selectedModel,
@@ -57,6 +84,14 @@ function App() {
       setLoading(false);
     }
   };
+
+  // These checks come after all the hooks above, which React requires.
+  if (authLoading) {
+    return <div className="h-screen bg-slate-900 text-slate-400 p-4">Loading...</div>;
+  }
+  if (!session) {
+    return <Login />;
+  }
 
   return (
     <div className="flex flex-col h-screen bg-slate-900 text-slate-100">
@@ -83,6 +118,13 @@ function App() {
           />
           Auto fallback
         </label>
+
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="ml-auto text-sm text-slate-400 hover:text-slate-200"
+        >
+          Log out
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
