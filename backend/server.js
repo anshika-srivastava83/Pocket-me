@@ -1,5 +1,6 @@
 const express = require('express');
 require('dotenv').config();
+const supabase = require('./services/supabase');
 const { callAI, getModels } = require('./services/aiService');
 
 const app = express();
@@ -32,6 +33,19 @@ app.post('/api/chat', async (req, res) => {
         console.error('AI Error:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// Checks that the backend can reach the database
+app.get('/api/health/db', async (req, res) => {
+    const { count, error } = await supabase
+        .from('spaces')
+        .select('*', { count: 'exact', head: true });
+
+    if (error) {
+        console.error('DB check failed:', error.message);
+        return res.status(500).json({ ok: false, error: error.message });
+    }
+    res.json({ ok: true, spacesCount: count });
 });
 
 app.listen(PORT, () => {
