@@ -2,23 +2,34 @@ const axios = require('axios');
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Gemini has its own request format. The key goes in a header so it cannot leak into logs.
-async function callGemini(model, prompt) {
+// "history" is a list like [{ role: 'user', content: '...' }, { role: 'assistant', content: '...' }]
+// "system" is the optional space instructions.
+
+// Gemini has its own format: roles are "user" and "model", and the system text goes in its own field.
+async function callGemini(model, history, system) {
+    const body = {
+        contents: history.map((m) => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+        }))
+    };
+    if (system) body.systemInstruction = { parts: [{ text: system }] };
+
     const response = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        { contents: [{ parts: [{ text: prompt }] }] },
+        body,
         { headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY }, timeout: 30000 }
     );
     const parts = response.data.candidates[0].content.parts;
     return parts.map((p) => p.text).filter(Boolean).join('');
 }
 
-// Groq, OpenRouter, Mistral and Cerebras all use this same "OpenAI style" format,
-// so one function serves all of them. Only the base URL and key change.
-async function callOpenAICompatible(baseUrl, apiKey, model, prompt) {
+// Groq, OpenRouter, Mistral and Cerebras all use this "OpenAI style" format.
+async function callOpenAICompatible(baseUrl, apiKey, model, history, system) {
+    const messages = system ? [{ role: 'system', content: system }, ...history] : history;
     const response = await axios.post(
         `${baseUrl}/chat/completions`,
-        { model, messages: [{ role: 'user', content: prompt }] },
+        { model, messages },
         { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 30000 }
     );
     return response.data.choices[0].message.content;
@@ -38,7 +49,6 @@ async function withRetry(fn) {
 }
 
 // Builds the list of models you can choose from, based on which keys exist in .env.
-// To add a new provider later, add one more block here.
 function getModels() {
     const models = [];
 
@@ -49,7 +59,7 @@ function getModels() {
                 models.push({
                     id: `gemini:${name}`,
                     label: `Gemini ${name}`,
-                    run: (prompt) => callGemini(name, prompt)
+                    run: (history, system) => callGemini(name, history, system)
                 })
             );
     }
@@ -61,12 +71,13 @@ function getModels() {
                 models.push({
                     id: `groq:${name}`,
                     label: `Groq ${name}`,
-                    run: (prompt) =>
+                    run: (history, system) =>
                         callOpenAICompatible(
                             'https://api.groq.com/openai/v1',
                             process.env.GROQ_API_KEY,
                             name,
-                            prompt
+                            history,
+                            system
                         )
                 })
             );
@@ -75,9 +86,7 @@ function getModels() {
     return models;
 }
 
-// modelId: the model you picked. autoFallback: if true, other models are tried
-// when yours fails. If false (the default), you get the real error instead.
-async function callAI(prompt, modelId, autoFallback = false) {
+async function callAI(history, system, modelId, autoFallback = false) {
     const models = getModels();
     if (models.length === 0) {
         throw new Error('No AI providers configured. Check your .env file.');
@@ -96,7 +105,9 @@ async function callAI(prompt, modelId, autoFallback = false) {
     for (const model of queue) {
         try {
             console.log(`Trying ${model.label}...`);
-            const text = await withRetry(() => model.run(prompt));
+            const started = Date.now();
+            const text = await withRetry(() => model.run(history, system));
+            console.log(`${model.label} answered in ${Date.now() - started} ms`);
             return { provider: model.label, modelId: model.id, text };
         } catch (err) {
             const status = err.response?.status || 'no status';

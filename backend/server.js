@@ -9,7 +9,9 @@ const PORT = process.env.PORT || 5000;
 
 app.use(express.json());
 
-// Your starting spaces. You can edit the instructions later.
+// How many earlier messages are sent to the AI with each new one.
+const HISTORY_LIMIT = 20;
+
 const DEFAULT_SPACES = [
     { name: 'Coding', instructions: 'You are my coding mentor. I am a beginner learning DSA with Java and web development. Explain simply, give code in small parts, and explain what each part does.' },
     { name: 'Mehfil', instructions: 'You are a mentor and partner for my open mic and event business called Mehfil. Help with planning, promotion and ideas.' },
@@ -41,7 +43,8 @@ app.get('/api/health/db', requireAuth, async (req, res) => {
     res.json({ ok: true, spacesCount: count });
 });
 
-// List my spaces. The first time, create the starting spaces.
+// ---------- Spaces ----------
+
 app.get('/api/spaces', requireAuth, async (req, res) => {
     const { data, error } = await supabase
         .from('spaces')
@@ -74,7 +77,6 @@ app.get('/api/spaces', requireAuth, async (req, res) => {
     res.json(seeded);
 });
 
-// Create a new space
 app.post('/api/spaces', requireAuth, async (req, res) => {
     const name = (req.body.name || '').trim();
     const instructions = (req.body.instructions || '').trim();
@@ -104,37 +106,141 @@ app.post('/api/spaces', requireAuth, async (req, res) => {
     res.json(data);
 });
 
+// ---------- Chats ----------
+
+// List the chats in a space, newest first
+app.get('/api/spaces/:spaceId/chats', requireAuth, async (req, res) => {
+    const { data, error } = await supabase
+        .from('chats')
+        .select('id, title, created_at')
+        .eq('space_id', req.params.spaceId)
+        .eq('user_id', req.user.id)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('List chats failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    res.json(data);
+});
+
+// Get all messages of one chat
+app.get('/api/chats/:chatId/messages', requireAuth, async (req, res) => {
+    const { data, error } = await supabase
+        .from('messages')
+        .select('id, sender, content, provider, created_at')
+        .eq('chat_id', req.params.chatId)
+        .eq('user_id', req.user.id)
+        .order('created_at');
+
+    if (error) {
+        console.error('List messages failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    res.json(data);
+});
+
+// Send a message. Creates a new chat if no chatId is given.
 app.post('/api/chat', requireAuth, async (req, res) => {
     try {
-        const { prompt, modelId, autoFallback, spaceId } = req.body;
+        const { prompt, modelId, autoFallback, spaceId, chatId } = req.body;
 
-        if (!prompt) {
-            return res.status(400).json({ success: false, error: 'Prompt is required in the request body.' });
+        if (!prompt || !prompt.trim()) {
+            return res.status(400).json({ success: false, error: 'Prompt is required.' });
+        }
+        if (prompt.length > 20000) {
+            return res.status(400).json({ success: false, error: 'Message is too long.' });
+        }
+        if (!spaceId) {
+            return res.status(400).json({ success: false, error: 'spaceId is required.' });
         }
 
-        let finalPrompt = prompt;
+        // The space must belong to the logged in user.
+        const { data: space } = await supabase
+            .from('spaces')
+            .select('id, instructions')
+            .eq('id', spaceId)
+            .eq('user_id', req.user.id)
+            .maybeSingle();
 
-        if (spaceId) {
-            // Look up the space, but only if it belongs to the logged in user.
-            const { data: space, error } = await supabase
-                .from('spaces')
-                .select('instructions')
-                .eq('id', spaceId)
+        if (!space) {
+            return res.status(404).json({ success: false, error: 'Space not found.' });
+        }
+
+        // Use the existing chat, or create a new one titled with the start of the first message.
+        let activeChatId = chatId;
+        let isNewChat = false;
+
+        if (activeChatId) {
+            const { data: chat } = await supabase
+                .from('chats')
+                .select('id')
+                .eq('id', activeChatId)
+                .eq('space_id', spaceId)
                 .eq('user_id', req.user.id)
                 .maybeSingle();
-
-            if (error || !space) {
-                return res.status(404).json({ success: false, error: 'Space not found.' });
+            if (!chat) {
+                return res.status(404).json({ success: false, error: 'Chat not found.' });
             }
-            if (space.instructions) {
-                finalPrompt = `Instructions for this conversation:\n${space.instructions}\n\nMy message:\n${prompt}`;
+        } else {
+            const title = prompt.trim().slice(0, 50);
+            const { data: created, error: createError } = await supabase
+                .from('chats')
+                .insert({ user_id: req.user.id, space_id: spaceId, title })
+                .select('id, title')
+                .single();
+            if (createError) {
+                return res.status(500).json({ success: false, error: createError.message });
             }
+            activeChatId = created.id;
+            isNewChat = true;
         }
 
-        const result = await callAI(finalPrompt, modelId, autoFallback === true);
-        res.json({ success: true, provider: result.provider, modelId: result.modelId, response: result.text });
+        // Load the most recent messages, then put them in the right order.
+        const { data: recent } = await supabase
+            .from('messages')
+            .select('sender, content')
+            .eq('chat_id', activeChatId)
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false })
+            .limit(HISTORY_LIMIT);
+
+        const history = (recent || [])
+            .reverse()
+            .map((m) => ({ role: m.sender === 'ai' ? 'assistant' : 'user', content: m.content }));
+        history.push({ role: 'user', content: prompt });
+
+        // Save the user's message.
+        const { error: saveUserError } = await supabase
+            .from('messages')
+            .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'user', content: prompt });
+        if (saveUserError) {
+            return res.status(500).json({ success: false, error: saveUserError.message });
+        }
+
+        // Ask the AI. If it fails, the user's message is still saved.
+        let result;
+        try {
+            result = await callAI(history, space.instructions, modelId, autoFallback === true);
+        } catch (aiError) {
+            console.error('AI Error:', aiError.message);
+            return res.status(500).json({ success: false, chatId: activeChatId, error: aiError.message });
+        }
+
+        // Save the AI reply.
+        await supabase
+            .from('messages')
+            .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider });
+
+        res.json({
+            success: true,
+            chatId: activeChatId,
+            isNewChat,
+            provider: result.provider,
+            response: result.text
+        });
     } catch (error) {
-        console.error('AI Error:', error.message);
+        console.error('Chat route error:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
