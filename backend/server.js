@@ -12,6 +12,11 @@ app.use(express.json());
 // How many earlier messages are sent to the AI with each new one.
 const HISTORY_LIMIT = 20;
 
+// After this many new messages, fold them into the chat's saved summary.
+const SUMMARY_EVERY = 2;
+// How many other chats in the same space are used as background.
+const SUMMARY_MAX_OTHER_CHATS = 5;
+
 const DEFAULT_SPACES = [
     { name: 'Coding', instructions: 'You are my coding mentor. I am a beginner learning DSA with Java and web development. Explain simply, give code in small parts, and explain what each part does.' },
     { name: 'Mehfil', instructions: 'You are a mentor and partner for my open mic and event business called Mehfil. Help with planning, promotion and ideas.' },
@@ -21,6 +26,44 @@ const DEFAULT_SPACES = [
     { name: 'Miscellaneous', instructions: '' },
     { name: 'Reminders', instructions: 'Help me track deadlines, important dates and birthdays.' }
 ];
+
+// Fold new messages into the chat's saved summary.
+async function updateSummary(chatId, userId, summarizedCount, oldSummary) {
+    const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('chat_id', chatId)
+        .eq('user_id', userId);
+
+    if (!count || count - summarizedCount < SUMMARY_EVERY) return;
+
+    const { data: fresh, error } = await supabase
+        .from('messages')
+        .select('sender, content')
+        .eq('chat_id', chatId)
+        .eq('user_id', userId)
+        .order('created_at')
+        .range(summarizedCount, count - 1);
+    if (error || !fresh || fresh.length === 0) return;
+
+    const transcript = fresh
+        .map((m) => `${m.sender === 'ai' ? 'Assistant' : 'User'}: ${m.content.slice(0, 2000)}`)
+        .join('\n');
+
+    const instruction =
+        'Update the running summary of a conversation. Keep names, decisions, facts about the user, ' +
+        'and open tasks. Stay under 200 words. Reply with the new summary only.\n\n' +
+        `Current summary:\n${oldSummary || '(none yet)'}\n\nNew messages:\n${transcript}`;
+
+    const result = await callAI([{ role: 'user', content: instruction }], '', undefined, true);
+
+    await supabase
+        .from('chats')
+        .update({ summary: result.text.trim(), summarized_count: count })
+        .eq('id', chatId)
+        .eq('user_id', userId)
+        .eq('summarized_count', summarizedCount);
+}
 
 // Public test route
 app.get('/', (req, res) => {
@@ -170,11 +213,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         // Use the existing chat, or create a new one titled with the start of the first message.
         let activeChatId = chatId;
         let isNewChat = false;
+        let chatSummary = '';
+        let summarizedCount = 0;
 
         if (activeChatId) {
             const { data: chat } = await supabase
                 .from('chats')
-                .select('id')
+                .select('id, summary, summarized_count')
                 .eq('id', activeChatId)
                 .eq('space_id', spaceId)
                 .eq('user_id', req.user.id)
@@ -182,6 +227,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             if (!chat) {
                 return res.status(404).json({ success: false, error: 'Chat not found.' });
             }
+            chatSummary = chat.summary || '';
+            summarizedCount = chat.summarized_count || 0;
         } else {
             const title = prompt.trim().slice(0, 50);
             const { data: created, error: createError } = await supabase
@@ -208,7 +255,28 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         const history = (recent || [])
             .reverse()
             .map((m) => ({ role: m.sender === 'ai' ? 'assistant' : 'user', content: m.content }));
-        history.push({ role: 'user', content: prompt });
+            history.push({ role: 'user', content: prompt });
+
+        // Background context: older part of this chat, and other chats in this space.
+        const { data: otherChats } = await supabase
+            .from('chats')
+            .select('title, summary')
+            .eq('space_id', spaceId)
+            .eq('user_id', req.user.id)
+            .neq('id', activeChatId)
+            .neq('summary', '')
+            .order('created_at', { ascending: false })
+            .limit(SUMMARY_MAX_OTHER_CHATS);
+
+        let system = space.instructions || '';
+        if (chatSummary && (recent || []).length >= HISTORY_LIMIT) {
+            system += `\n\nSummary of the earlier part of this chat:\n${chatSummary}`;
+        }
+        if (otherChats && otherChats.length > 0) {
+            system +=
+                '\n\nSummaries of other chats in this space, for background only:\n' +
+                otherChats.map((c) => `- ${c.title}: ${c.summary}`).join('\n');
+        }
 
         // Save the user's message.
         const { error: saveUserError } = await supabase
@@ -228,7 +296,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         // Ask the AI. If it fails, the user's message is still saved.
         let result;
         try {
-            result = await callAI(history, space.instructions, modelId, autoFallback === true, controller.signal);
+            result = await callAI(history, system, modelId, autoFallback === true, controller.signal);
         } catch (aiError) {
             if (aiError.aborted) {
                 console.log('Request stopped by user.');
@@ -242,6 +310,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         await supabase
             .from('messages')
             .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider });
+
+        // Update the summary in the background. The reply does not wait for it.
+        updateSummary(activeChatId, req.user.id, summarizedCount, chatSummary).catch((err) =>
+            console.error('Summary update failed:', err.message)
+        );
 
         res.json({
             success: true,
