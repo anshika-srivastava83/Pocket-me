@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './Login';
 
@@ -21,6 +21,7 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const abortRef = useRef(null);
 
   // Model picker state
   const [models, setModels] = useState([]);
@@ -140,11 +141,14 @@ function App() {
     setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
     setInput('');
     setLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      const res = await fetch('/api/chat', {
+        const res = await fetch('/api/chat', {
         method: 'POST',
         headers: authHeaders,
+        signal: controller.signal,
         body: JSON.stringify({
           prompt: userMessage,
           modelId: selectedModel,
@@ -166,9 +170,14 @@ function App() {
       } else {
         setMessages((prev) => [...prev, { sender: 'ai', text: `Error: ${data.error}` }]);
       }
-    } catch (err) {
-      setMessages((prev) => [...prev, { sender: 'ai', text: 'Failed to connect to backend server.' }]);
+      } catch (err) {
+      if (err.name === 'AbortError') {
+        setMessages((prev) => [...prev, { sender: 'ai', text: 'Stopped.' }]);
+      } else {
+        setMessages((prev) => [...prev, { sender: 'ai', text: 'Failed to connect to backend server.' }]);
+      }
     } finally {
+      abortRef.current = null;
       setLoading(false);
     }
   };
@@ -316,13 +325,22 @@ function App() {
           placeholder={activeSpace ? `Message in ${activeSpace.name}...` : 'Type a message...'}
           className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
         />
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-blue-600 px-5 py-2 rounded-lg font-semibold hover:bg-blue-500 transition disabled:opacity-50"
-        >
-          Send
-        </button>
+        {loading ? (
+          <button
+            type="button"
+            onClick={() => abortRef.current?.abort()}
+            className="bg-red-600 px-5 py-2 rounded-lg font-semibold hover:bg-red-500 transition"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="bg-blue-600 px-5 py-2 rounded-lg font-semibold hover:bg-blue-500 transition"
+          >
+            Send
+          </button>
+        )}
       </form>
     </div>
   );
