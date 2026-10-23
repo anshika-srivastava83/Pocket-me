@@ -219,10 +219,21 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         }
 
         // Ask the AI. If it fails, the user's message is still saved.
+                // If the browser cancels the request (Stop button), cancel the AI call too.
+        const controller = new AbortController();
+        res.on('close', () => {
+            if (!res.writableFinished) controller.abort();
+        });
+
+        // Ask the AI. If it fails, the user's message is still saved.
         let result;
         try {
-            result = await callAI(history, space.instructions, modelId, autoFallback === true);
+            result = await callAI(history, space.instructions, modelId, autoFallback === true, controller.signal);
         } catch (aiError) {
+            if (aiError.aborted) {
+                console.log('Request stopped by user.');
+                return;
+            }
             console.error('AI Error:', aiError.message);
             return res.status(500).json({ success: false, chatId: activeChatId, error: aiError.message });
         }

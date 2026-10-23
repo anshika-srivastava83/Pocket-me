@@ -4,9 +4,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // "history" is a list like [{ role: 'user', content: '...' }, { role: 'assistant', content: '...' }]
 // "system" is the optional space instructions.
+// "signal" lets the caller cancel the request (used by the Stop button).
 
-// Gemini has its own format: roles are "user" and "model", and the system text goes in its own field.
-async function callGemini(model, history, system) {
+async function callGemini(model, history, system, signal) {
     const body = {
         contents: history.map((m) => ({
             role: m.role === 'assistant' ? 'model' : 'user',
@@ -18,37 +18,38 @@ async function callGemini(model, history, system) {
     const response = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         body,
-        { headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY }, timeout: 30000 }
+        { headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY }, timeout: 30000, signal }
     );
     const parts = response.data.candidates[0].content.parts;
     return parts.map((p) => p.text).filter(Boolean).join('');
 }
 
 // Groq, OpenRouter, Mistral and Cerebras all use this "OpenAI style" format.
-async function callOpenAICompatible(baseUrl, apiKey, model, history, system) {
+async function callOpenAICompatible(baseUrl, apiKey, model, history, system, signal) {
     const messages = system ? [{ role: 'system', content: system }, ...history] : history;
     const response = await axios.post(
         `${baseUrl}/chat/completions`,
         { model, messages },
-        { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 30000 }
+        { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 30000, signal }
     );
     return response.data.choices[0].message.content;
 }
 
-// One retry for temporary problems (busy server or rate limit).
-async function withRetry(fn) {
+// One retry for temporary problems. A cancel is never retried.
+async function withRetry(fn, signal) {
     try {
         return await fn();
     } catch (err) {
+        if (signal?.aborted) throw err;
         if ([429, 500, 502, 503].includes(err.response?.status)) {
             await wait(1500);
+            if (signal?.aborted) throw err;
             return await fn();
         }
         throw err;
     }
 }
 
-// Builds the list of models you can choose from, based on which keys exist in .env.
 function getModels() {
     const models = [];
 
@@ -59,7 +60,7 @@ function getModels() {
                 models.push({
                     id: `gemini:${name}`,
                     label: `Gemini ${name}`,
-                    run: (history, system) => callGemini(name, history, system)
+                    run: (history, system, signal) => callGemini(name, history, system, signal)
                 })
             );
     }
@@ -71,13 +72,14 @@ function getModels() {
                 models.push({
                     id: `groq:${name}`,
                     label: `Groq ${name}`,
-                    run: (history, system) =>
+                    run: (history, system, signal) =>
                         callOpenAICompatible(
                             'https://api.groq.com/openai/v1',
                             process.env.GROQ_API_KEY,
                             name,
                             history,
-                            system
+                            system,
+                            signal
                         )
                 })
             );
@@ -86,7 +88,7 @@ function getModels() {
     return models;
 }
 
-async function callAI(history, system, modelId, autoFallback = false) {
+async function callAI(history, system, modelId, autoFallback = false, signal) {
     const models = getModels();
     if (models.length === 0) {
         throw new Error('No AI providers configured. Check your .env file.');
@@ -106,10 +108,16 @@ async function callAI(history, system, modelId, autoFallback = false) {
         try {
             console.log(`Trying ${model.label}...`);
             const started = Date.now();
-            const text = await withRetry(() => model.run(history, system));
+            const text = await withRetry(() => model.run(history, system, signal), signal);
             console.log(`${model.label} answered in ${Date.now() - started} ms`);
             return { provider: model.label, modelId: model.id, text };
         } catch (err) {
+            // If you pressed Stop, do not try other models. Just stop everything.
+            if (signal?.aborted || axios.isCancel(err)) {
+                const stopped = new Error('Stopped by user.');
+                stopped.aborted = true;
+                throw stopped;
+            }
             const status = err.response?.status || 'no status';
             const message = err.response?.data?.error?.message || err.message;
             console.error(`${model.label} failed: ${status} ${message}`);
