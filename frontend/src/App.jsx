@@ -51,6 +51,7 @@ function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const abortRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Model picker state
   const [models, setModels] = useState([]);
@@ -135,6 +136,19 @@ function App() {
     }
   };
 
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard access can fail on non-secure pages. Nothing to do.
+    }
+  };
+
+  const editMessage = (text) => {
+    setInput(text);
+    inputRef.current?.focus();
+  };
+
   const startNewChat = () => {
     setActiveChatId(null);
     setMessages([]);
@@ -162,11 +176,15 @@ function App() {
     setShowForm(false);
   };
 
-  const sendMessage = async (e) => {
+  const sendMessage = (e) => {
     e.preventDefault();
-    if (!input.trim() || !activeSpaceId || loading) return;
+    sendText(input);
+  };
 
-    const userMessage = input;
+  const sendText = async (text) => {
+    if (!text.trim() || !activeSpaceId || loading) return;
+
+    const userMessage = text;
     setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
     setInput('');
     setLoading(true);
@@ -347,6 +365,26 @@ function App() {
               )}
               {msg.text}
               {msg.provider && <div className="mt-2 text-xs text-slate-400">via {msg.provider}</div>}
+              <div className="mt-2 flex gap-3 text-xs opacity-70">
+                <button type="button" onClick={() => copyText(msg.text)} className="hover:underline">
+                  Copy
+                </button>
+                {msg.sender === 'user' && (
+                  <>
+                    <button type="button" onClick={() => editMessage(msg.text)} className="hover:underline">
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => sendText(msg.text)}
+                      disabled={loading}
+                      className="hover:underline disabled:opacity-40"
+                    >
+                      Resend
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -354,12 +392,20 @@ function App() {
       </div>
 
       <form onSubmit={sendMessage} className="p-4 bg-slate-800 border-t border-slate-700 flex gap-2">
-        <input
-          type="text"
+        <textarea
+          ref={inputRef}
+          rows={2}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            // On desktop, Enter sends and Shift+Enter adds a new line. On a phone, Enter adds a new line.
+            if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width: 768px)').matches) {
+              e.preventDefault();
+              sendText(input);
+            }
+          }}
           placeholder={activeSpace ? `Message in ${activeSpace.name}...` : 'Type a message...'}
-          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+          className="flex-1 resize-none bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
         />
         {loading ? (
           <button
