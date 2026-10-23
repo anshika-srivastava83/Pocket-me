@@ -1,6 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './Login';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const markdownComponents = {
+  p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
+  h1: ({ children }) => <h3 className="font-bold text-lg mb-2">{children}</h3>,
+  h2: ({ children }) => <h3 className="font-bold text-lg mb-2">{children}</h3>,
+  h3: ({ children }) => <h3 className="font-bold mb-2">{children}</h3>,
+  ul: ({ children }) => <ul className="list-disc pl-5 mb-2">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 mb-2">{children}</ol>,
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noreferrer" className="text-blue-400 underline">{children}</a>
+  ),
+  pre: ({ children }) => (
+    <pre className="bg-slate-950 rounded-lg p-3 mb-2 overflow-x-auto text-sm [&_code]:bg-transparent [&_code]:p-0">
+      {children}
+    </pre>
+  ),
+  code: ({ children, className }) => (
+    <code className={`${className || ''} bg-slate-950 rounded px-1 text-sm`}>{children}</code>
+  ),
+  table: ({ children }) => (
+    <div className="overflow-x-auto mb-2">
+      <table className="text-sm border-collapse">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => <th className="border border-slate-600 px-2 py-1 text-left">{children}</th>,
+  td: ({ children }) => <td className="border border-slate-600 px-2 py-1">{children}</td>
+};
 
 function App() {
   // Login state
@@ -308,7 +337,14 @@ function App() {
         )}
         {messages.map((msg, index) => (
           <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-xs md:max-w-md p-3 rounded-lg whitespace-pre-wrap ${msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-800 border border-slate-700'}`}>
+            <div className={`max-w-[85%] md:max-w-2xl p-3 rounded-lg ${msg.sender === 'user' ? 'bg-blue-600 text-white whitespace-pre-wrap' : 'bg-slate-800 border border-slate-700'}`}>
+              {msg.sender === 'user' ? (
+                msg.text
+              ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {msg.text}
+                </ReactMarkdown>
+              )}
               {msg.text}
               {msg.provider && <div className="mt-2 text-xs text-slate-400">via {msg.provider}</div>}
             </div>
