@@ -363,7 +363,6 @@ function App() {
                   {msg.text}
                 </ReactMarkdown>
               )}
-              {msg.text}
               {msg.provider && <div className="mt-2 text-xs text-slate-400">via {msg.provider}</div>}
               <div className="mt-2 flex gap-3 text-xs opacity-70">
                 <button type="button" onClick={() => copyText(msg.text)} className="hover:underline">
