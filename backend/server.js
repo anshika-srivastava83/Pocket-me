@@ -149,6 +149,60 @@ app.post('/api/spaces', requireAuth, async (req, res) => {
     res.json(data);
 });
 
+// ---------- Reminders ----------
+
+app.get('/api/reminders', requireAuth, async (req, res) => {
+    const { data, error } = await supabase
+        .from('reminders')
+        .select('id, title, remind_at')
+        .eq('user_id', req.user.id)
+        .order('remind_at');
+
+    if (error) {
+        console.error('List reminders failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    res.json(data);
+});
+
+app.post('/api/reminders', requireAuth, async (req, res) => {
+    const title = (req.body.title || '').trim();
+    const remindAt = new Date(String(req.body.remindAt));
+
+    if (!title || title.length > 200) {
+        return res.status(400).json({ success: false, error: 'Title is required and must be 200 characters or less.' });
+    }
+    if (Number.isNaN(remindAt.getTime())) {
+        return res.status(400).json({ success: false, error: 'A valid date and time is required.' });
+    }
+
+    const { data, error } = await supabase
+        .from('reminders')
+        .insert({ user_id: req.user.id, title, remind_at: remindAt.toISOString() })
+        .select('id, title, remind_at')
+        .single();
+
+    if (error) {
+        console.error('Create reminder failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    res.json(data);
+});
+
+app.delete('/api/reminders/:id', requireAuth, async (req, res) => {
+    const { error } = await supabase
+        .from('reminders')
+        .delete()
+        .eq('id', req.params.id)
+        .eq('user_id', req.user.id);
+
+    if (error) {
+        console.error('Delete reminder failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    res.json({ success: true });
+});
+
 // ---------- Chats ----------
 
 // List the chats in a space, newest first

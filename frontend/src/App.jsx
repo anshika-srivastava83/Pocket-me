@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './Login';
+import Reminders from './reminders';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -348,6 +349,8 @@ function App() {
           New chat
         </button>
       </div>
+
+      {activeSpace?.name === 'Reminders' && <Reminders token={token} />}
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && activeSpace && (
