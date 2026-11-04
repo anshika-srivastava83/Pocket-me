@@ -149,6 +149,84 @@ app.post('/api/spaces', requireAuth, async (req, res) => {
     res.json(data);
 });
 
+// Rename a space or change its instructions
+app.patch('/api/spaces/:spaceId', requireAuth, async (req, res) => {
+    const name = (req.body.name || '').trim();
+    const instructions = (req.body.instructions || '').trim();
+
+    if (!name || name.length > 40) {
+        return res.status(400).json({ success: false, error: 'Name is required and must be 40 characters or less.' });
+    }
+    if (instructions.length > 4000) {
+        return res.status(400).json({ success: false, error: 'Instructions are too long.' });
+    }
+
+    const { data, error } = await supabase
+        .from('spaces')
+        .update({ name, instructions })
+        .eq('id', req.params.spaceId)
+        .eq('user_id', req.user.id)
+        .select('id, name, instructions')
+        .maybeSingle();
+
+    if (error) {
+        console.error('Update space failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    if (!data) {
+        return res.status(404).json({ success: false, error: 'Space not found.' });
+    }
+    res.json(data);
+});
+
+// Delete a space together with its chats and messages
+app.delete('/api/spaces/:spaceId', requireAuth, async (req, res) => {
+    const spaceId = req.params.spaceId;
+
+    const { data: chats, error: chatsError } = await supabase
+        .from('chats')
+        .select('id')
+        .eq('space_id', spaceId)
+        .eq('user_id', req.user.id);
+
+    if (chatsError) {
+        return res.status(500).json({ success: false, error: chatsError.message });
+    }
+
+    const chatIds = (chats || []).map((c) => c.id);
+    if (chatIds.length > 0) {
+        const { error: messagesError } = await supabase
+            .from('messages')
+            .delete()
+            .in('chat_id', chatIds)
+            .eq('user_id', req.user.id);
+        if (messagesError) {
+            return res.status(500).json({ success: false, error: messagesError.message });
+        }
+
+        const { error: chatsDeleteError } = await supabase
+            .from('chats')
+            .delete()
+            .in('id', chatIds)
+            .eq('user_id', req.user.id);
+        if (chatsDeleteError) {
+            return res.status(500).json({ success: false, error: chatsDeleteError.message });
+        }
+    }
+
+    const { error } = await supabase
+        .from('spaces')
+        .delete()
+        .eq('id', spaceId)
+        .eq('user_id', req.user.id);
+
+    if (error) {
+        console.error('Delete space failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    res.json({ success: true });
+});
+
 // ---------- Reminders ----------
 
 app.get('/api/reminders', requireAuth, async (req, res) => {
@@ -235,6 +313,57 @@ app.get('/api/chats/:chatId/messages', requireAuth, async (req, res) => {
         return res.status(500).json({ success: false, error: error.message });
     }
     res.json(data);
+});
+
+// Rename a chat
+app.patch('/api/chats/:chatId', requireAuth, async (req, res) => {
+    const title = (req.body.title || '').trim();
+
+    if (!title || title.length > 100) {
+        return res.status(400).json({ success: false, error: 'Title is required and must be 100 characters or less.' });
+    }
+
+    const { data, error } = await supabase
+        .from('chats')
+        .update({ title })
+        .eq('id', req.params.chatId)
+        .eq('user_id', req.user.id)
+        .select('id, title')
+        .maybeSingle();
+
+    if (error) {
+        console.error('Rename chat failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    if (!data) {
+        return res.status(404).json({ success: false, error: 'Chat not found.' });
+    }
+    res.json(data);
+});
+
+// Delete a chat and its messages
+app.delete('/api/chats/:chatId', requireAuth, async (req, res) => {
+    const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_id', req.params.chatId)
+        .eq('user_id', req.user.id);
+
+    if (messagesError) {
+        return res.status(500).json({ success: false, error: messagesError.message });
+    }
+
+    const { error } = await supabase
+        .from('chats')
+        .delete()
+        .eq('id', req.params.chatId)
+        .eq('user_id', req.user.id);
+
+    if (error) {
+        console.error('Delete chat failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    res.json({ success: true });
 });
 
 // Send a message. Creates a new chat if no chatId is given.

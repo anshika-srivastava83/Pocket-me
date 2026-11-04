@@ -44,6 +44,7 @@ function App() {
   const [newName, setNewName] = useState('');
   const [newInstructions, setNewInstructions] = useState('');
   const [formError, setFormError] = useState('');
+  const [editingSpaceId, setEditingSpaceId] = useState(null);
 
   // Chats state: the chat list for the open space, and which chat is open
   const [chatList, setChatList] = useState([]);
@@ -137,6 +138,34 @@ function App() {
     }
   };
 
+  const renameChat = async () => {
+    const current = chatList.find((c) => c.id === activeChatId);
+    if (!current) return;
+    const title = window.prompt('Rename chat', current.title);
+    if (!title || !title.trim()) return;
+
+    const res = await fetch(`/api/chats/${activeChatId}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ title })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setChatList((prev) => prev.map((c) => (c.id === data.id ? { ...c, title: data.title } : c)));
+    }
+  };
+
+  const deleteChat = async () => {
+    if (!activeChatId) return;
+    if (!window.confirm('Delete this chat? This cannot be undone.')) return;
+
+    const res = await fetch(`/api/chats/${activeChatId}`, { method: 'DELETE', headers: authHeaders });
+    if (res.ok) {
+      setChatList((prev) => prev.filter((c) => c.id !== activeChatId));
+      startNewChat();
+    }
+  };
+
   const copyText = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -159,22 +188,56 @@ function App() {
     e.preventDefault();
     setFormError('');
 
-    const res = await fetch('/api/spaces', {
-      method: 'POST',
+        const res = await fetch(editingSpaceId ? `/api/spaces/${editingSpaceId}` : '/api/spaces', {
+      method: editingSpaceId ? 'PATCH' : 'POST',
       headers: authHeaders,
       body: JSON.stringify({ name: newName, instructions: newInstructions })
     });
     const data = await res.json();
 
     if (!res.ok) {
-      setFormError(data.error || 'Could not create the space.');
+      setFormError(data.error || 'Could not save the space.');
       return;
     }
-    setSpaces((prev) => [...prev, data]);
-    setActiveSpaceId(data.id);
+    if (editingSpaceId) {
+      setSpaces((prev) => prev.map((s) => (s.id === data.id ? data : s)));
+    } else {
+      setSpaces((prev) => [...prev, data]);
+      setActiveSpaceId(data.id);
+    }
+    closeSpaceForm();
+  };
+
+  const closeSpaceForm = () => {
+    setEditingSpaceId(null);
     setNewName('');
     setNewInstructions('');
+    setFormError('');
     setShowForm(false);
+  };
+
+  const openEditSpace = () => {
+    if (!activeSpace) return;
+    setEditingSpaceId(activeSpace.id);
+    setNewName(activeSpace.name);
+    setNewInstructions(activeSpace.instructions || '');
+    setFormError('');
+    setShowForm(true);
+  };
+
+  const deleteSpace = async () => {
+    if (!editingSpaceId) return;
+    if (!window.confirm('Delete this space and all its chats? This cannot be undone.')) return;
+
+    const res = await fetch(`/api/spaces/${editingSpaceId}`, { method: 'DELETE', headers: authHeaders });
+    if (!res.ok) {
+      setFormError('Could not delete the space.');
+      return;
+    }
+    const remaining = spaces.filter((s) => s.id !== editingSpaceId);
+    setSpaces(remaining);
+    setActiveSpaceId(remaining.length > 0 ? remaining[0].id : '');
+    closeSpaceForm();
   };
 
   const sendMessage = (e) => {
@@ -286,11 +349,17 @@ function App() {
           </button>
         ))}
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => (showForm ? closeSpaceForm() : setShowForm(true))}
           className="px-3 py-1 rounded-lg text-sm bg-slate-900 text-slate-300 hover:bg-slate-700"
           aria-label="Add a new space"
         >
           +
+        </button>
+        <button
+          onClick={openEditSpace}
+          className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-900 text-slate-300 hover:bg-slate-700"
+        >
+          Edit space
         </button>
       </div>
 
@@ -315,15 +384,24 @@ function App() {
           {formError && <p className="text-sm text-amber-300">{formError}</p>}
           <div className="flex gap-2">
             <button type="submit" className="bg-blue-600 px-4 py-2 rounded-lg font-semibold hover:bg-blue-500 transition">
-              Create space
+              {editingSpaceId ? 'Save space' : 'Create space'}
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={closeSpaceForm}
               className="px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200"
             >
               Cancel
             </button>
+            {editingSpaceId && (
+              <button
+                type="button"
+                onClick={deleteSpace}
+                className="ml-auto px-4 py-2 rounded-lg text-red-400 hover:text-red-300"
+              >
+                Delete space
+              </button>
+            )}
           </div>
         </form>
       )}
@@ -348,6 +426,22 @@ function App() {
         >
           New chat
         </button>
+        {activeChatId && (
+          <>
+            <button
+              onClick={renameChat}
+              className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-800 text-slate-300 hover:bg-slate-700"
+            >
+              Rename
+            </button>
+            <button
+              onClick={deleteChat}
+              className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-800 text-red-400 hover:bg-slate-700"
+            >
+              Delete
+            </button>
+          </>
+        )}
       </div>
 
       {activeSpace?.name === 'Reminders' && <Reminders token={token} />}
