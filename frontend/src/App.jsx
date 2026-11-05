@@ -45,6 +45,9 @@ function App() {
   const [newInstructions, setNewInstructions] = useState('');
   const [formError, setFormError] = useState('');
   const [editingSpaceId, setEditingSpaceId] = useState(null);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [chatError, setChatError] = useState('');
 
   // Chats state: the chat list for the open space, and which chat is open
   const [chatList, setChatList] = useState([]);
@@ -138,20 +141,33 @@ function App() {
     }
   };
 
-  const renameChat = async () => {
+  const startRename = () => {
     const current = chatList.find((c) => c.id === activeChatId);
     if (!current) return;
-    const title = window.prompt('Rename chat', current.title);
-    if (!title || !title.trim()) return;
+    setRenameValue(current.title);
+    setChatError('');
+    setRenamingId(current.id);
+  };
 
-    const res = await fetch(`/api/chats/${activeChatId}`, {
-      method: 'PATCH',
-      headers: authHeaders,
-      body: JSON.stringify({ title })
-    });
-    const data = await res.json();
-    if (res.ok) {
+  const saveRename = async (e) => {
+    e.preventDefault();
+    if (!renameValue.trim() || !renamingId) return;
+
+    try {
+      const res = await fetch(`/api/chats/${renamingId}`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ title: renameValue })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setChatError(data.error || `Rename failed (status ${res.status}).`);
+        return;
+      }
       setChatList((prev) => prev.map((c) => (c.id === data.id ? { ...c, title: data.title } : c)));
+      setRenamingId(null);
+    } catch {
+      setChatError('Could not reach the server.');
     }
   };
 
@@ -429,7 +445,7 @@ function App() {
         {activeChatId && (
           <>
             <button
-              onClick={renameChat}
+              onClick={startRename}
               className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-800 text-slate-300 hover:bg-slate-700"
             >
               Rename
@@ -443,6 +459,32 @@ function App() {
           </>
         )}
       </div>
+
+      {renamingId && renamingId === activeChatId && (
+        <div className="px-4 py-2 bg-slate-900 border-b border-slate-700">
+          <form onSubmit={saveRename} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              maxLength={100}
+              autoFocus
+              className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-blue-500"
+            />
+            <button type="submit" className="px-3 py-1 rounded-lg text-sm bg-blue-600 hover:bg-blue-500">
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setRenamingId(null)}
+              className="px-3 py-1 rounded-lg text-sm text-slate-400 hover:text-slate-200"
+            >
+              Cancel
+            </button>
+          </form>
+          {chatError && <p className="mt-1 text-sm text-amber-300">{chatError}</p>}
+        </div>
+      )}
 
       {activeSpace?.name === 'Reminders' && <Reminders token={token} />}
 
