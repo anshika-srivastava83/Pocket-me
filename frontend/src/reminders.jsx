@@ -1,18 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// Builds a link that opens Google Calendar with the event already filled in.
-function calendarLink(reminder) {
-  const start = new Date(reminder.remind_at);
-  const end = new Date(start.getTime() + 30 * 60 * 1000);
-  const fmt = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: reminder.title,
-    dates: `${fmt(start)}/${fmt(end)}`
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
-
 function Reminders({ token }) {
   const [reminders, setReminders] = useState([]);
   const [title, setTitle] = useState('');
@@ -99,14 +86,6 @@ function Reminders({ token }) {
                 <div className="truncate">{r.title}</div>
                 <div className="text-xs text-slate-400">{new Date(r.remind_at).toLocaleString()}</div>
               </div>
-              <a
-                href={calendarLink(r)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-400 hover:underline whitespace-nowrap"
-              >
-                Add to Calendar
-              </a>
               <button
                 type="button"
                 onClick={() => deleteReminder(r.id)}

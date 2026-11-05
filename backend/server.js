@@ -3,6 +3,7 @@ require('dotenv').config();
 const supabase = require('./services/supabase');
 const requireAuth = require('./middleware/requireAuth');
 const { callAI, getModels } = require('./services/aiService');
+const { createCalendarEvent, deleteCalendarEvent } = require('./services/googleCalendar');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -254,20 +255,49 @@ app.post('/api/reminders', requireAuth, async (req, res) => {
         return res.status(400).json({ success: false, error: 'A valid date and time is required.' });
     }
 
+        let eventId;
+    try {
+        eventId = await createCalendarEvent(title, remindAt);
+    } catch (err) {
+        console.error('Google Calendar create failed:', err.response?.data?.error?.message || err.message);
+        return res.status(502).json({ success: false, error: 'Could not add the reminder to Google Calendar.' });
+    }
+
     const { data, error } = await supabase
         .from('reminders')
-        .insert({ user_id: req.user.id, title, remind_at: remindAt.toISOString() })
+        .insert({ user_id: req.user.id, title, remind_at: remindAt.toISOString(), google_event_id: eventId })
         .select('id, title, remind_at')
         .single();
 
     if (error) {
         console.error('Create reminder failed:', error.message);
+        await deleteCalendarEvent(eventId).catch(() => {});
         return res.status(500).json({ success: false, error: error.message });
     }
     res.json(data);
 });
 
 app.delete('/api/reminders/:id', requireAuth, async (req, res) => {
+    const { data: reminder } = await supabase
+        .from('reminders')
+        .select('google_event_id')
+        .eq('id', req.params.id)
+        .eq('user_id', req.user.id)
+        .maybeSingle();
+
+    if (!reminder) {
+        return res.status(404).json({ success: false, error: 'Reminder not found.' });
+    }
+
+    if (reminder.google_event_id) {
+        try {
+            await deleteCalendarEvent(reminder.google_event_id);
+        } catch (err) {
+            console.error('Google Calendar delete failed:', err.response?.data?.error?.message || err.message);
+            return res.status(502).json({ success: false, error: 'Could not remove the reminder from Google Calendar.' });
+        }
+    }
+
     const { error } = await supabase
         .from('reminders')
         .delete()
