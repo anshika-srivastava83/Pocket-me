@@ -4,6 +4,7 @@ const supabase = require('./services/supabase');
 const requireAuth = require('./middleware/requireAuth');
 const { callAI, getModels } = require('./services/aiService');
 const { createCalendarEvent, deleteCalendarEvent } = require('./services/googleCalendar');
+const { waitUntil } = require('@vercel/functions');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -525,9 +526,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider });
 
         // Update the summary in the background. The reply does not wait for it.
-        updateSummary(activeChatId, req.user.id, summarizedCount, chatSummary).catch((err) =>
+        const summaryJob = updateSummary(activeChatId, req.user.id, summarizedCount, chatSummary).catch((err) =>
             console.error('Summary update failed:', err.message)
         );
+        try {
+            waitUntil(summaryJob); // On Vercel, keeps the function alive until the summary is saved.
+        } catch {
+            // Not on Vercel: the job already runs by itself.
+        }
 
         res.json({
             success: true,
@@ -542,6 +548,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+// Run a normal server locally. On Vercel the exported app is used instead.
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}
+
+module.exports = app;
