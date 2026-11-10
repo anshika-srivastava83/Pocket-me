@@ -1,5 +1,0 @@
-{
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "https://pocket-me-api.vercel.app/api/:path*" }
-  ]
-}
