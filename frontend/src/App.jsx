@@ -324,16 +324,8 @@ function App() {
             <header className="relative z-10 px-4 py-3 bg-surface text-ink border-b-2 border-ink flex flex-wrap items-center gap-3">
         <button
           onClick={() => setActiveSpaceId('')}
-          className="flex items-center gap-3 bg-transparent border-0 p-0"
+          className="bg-transparent border-0 p-0"
         >
-          <img
-            src="/pikachu.png"
-            alt=""
-            className="h-14 w-14 object-contain"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
           <span className="pm-title">Pocket Me</span>
         </button>
 
@@ -364,9 +356,16 @@ function App() {
 
         <div className="ml-auto flex items-center gap-3">
           {!activeSpaceId && remindersSpace && (
-            <button onClick={() => setActiveSpaceId(remindersSpace.id)} className="nb-tab">
-              Reminders
-            </button>
+            <div className="relative">
+              <img
+                src="/pikachu.png"
+                alt=""
+                className="absolute -top-7 -left-6 h-12 w-12 object-contain pointer-events-none z-20 -rotate-12"
+              />
+              <button onClick={() => setActiveSpaceId(remindersSpace.id)} className="nb-tab">
+                Reminders
+              </button>
+            </div>
           )}
           {activeSpaceId && (
             <button onClick={() => setActiveSpaceId('')} className="nb-tab" aria-selected="false">
