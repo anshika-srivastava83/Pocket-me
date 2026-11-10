@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './Login';
 import Reminders from './reminders';
+import Landing from './Landing';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -89,7 +90,7 @@ function App() {
       .then((list) => {
         if (Array.isArray(list)) {
           setModels(list);
-          if (list.length > 0) setSelectedModel((current) => current || list[0].id);
+          //if (list.length > 0) setSelectedModel((current) => current || list[0].id);
         }
       })
       .catch(() => {});
@@ -252,7 +253,7 @@ function App() {
     }
     const remaining = spaces.filter((s) => s.id !== editingSpaceId);
     setSpaces(remaining);
-    setActiveSpaceId(remaining.length > 0 ? remaining[0].id : '');
+    setActiveSpaceId('');
     closeSpaceForm();
   };
 
@@ -353,6 +354,14 @@ function App() {
 
       {/* Space tabs. They scroll sideways on a phone. */}
       <div className="flex items-center gap-2 px-4 py-2 bg-slate-800 border-b border-slate-700 overflow-x-auto">
+        <button
+          onClick={() => setActiveSpaceId('')}
+          className={`whitespace-nowrap px-3 py-1 rounded-lg text-sm transition ${
+            !activeSpaceId ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-300 hover:bg-slate-700'
+          }`}
+        >
+          Home
+        </button>
         {spaces.map((s) => (
           <button
             key={s.id}
@@ -371,12 +380,14 @@ function App() {
         >
           +
         </button>
-        <button
-          onClick={openEditSpace}
-          className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-900 text-slate-300 hover:bg-slate-700"
-        >
-          Edit space
-        </button>
+        {activeSpace && (
+          <button
+            onClick={openEditSpace}
+            className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-900 text-slate-300 hover:bg-slate-700"
+          >
+            Edit space
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -460,6 +471,10 @@ function App() {
         )}
       </div>
 
+      {!activeSpaceId ? (
+        <Landing spaces={spaces} onOpen={setActiveSpaceId} onNew={() => setShowForm(true)} />
+      ) : (
+        <>
       {renamingId && renamingId === activeChatId && (
         <div className="px-4 py-2 bg-slate-900 border-b border-slate-700">
           <form onSubmit={saveRename} className="flex items-center gap-2">
@@ -485,6 +500,7 @@ function App() {
           {chatError && <p className="mt-1 text-sm text-amber-300">{chatError}</p>}
         </div>
       )}
+      
 
       {activeSpace?.name === 'Reminders' && <Reminders token={token} />}
 
@@ -561,7 +577,9 @@ function App() {
             Send
           </button>
         )}
-      </form>
+           </form>
+        </>
+      )}
     </div>
   );
 }
