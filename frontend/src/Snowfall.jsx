@@ -1,50 +1,36 @@
-import React from 'react';
-
-// Created once when the page loads, so the flakes keep their positions between re-renders.
-const FLAKES = Array.from({ length: 45 }, () => ({
-  left: Math.random() * 100,
-  size: 3 + Math.random() * 6,
-  duration: 8 + Math.random() * 10,
-  delay: -Math.random() * 18,
-  drift: (Math.random() - 0.5) * 80,
-  opacity: 0.4 + Math.random() * 0.5,
-  glyph: Math.random() < 0.35
+const FLAKES = Array.from({ length: 36 }, (_, i) => ({
+  left: (i * 137) % 100,
+  size: 3 + ((i * 7) % 4),
+  delay: -((i * 1.7) % 14),
+  duration: 12 + ((i * 3) % 10),
+  drift: ((i * 11) % 40) - 20,
 }));
 
-const CSS = `
-@keyframes snow-fall {
-  0%   { transform: translate3d(0, -6vh, 0); opacity: 0; }
-  10%  { opacity: var(--o); }
-  90%  { opacity: var(--o); }
-  100% { transform: translate3d(var(--drift), 106vh, 0); opacity: 0; }
-}
-.snowflake { position: absolute; top: 0; color: #fff; line-height: 1; will-change: transform; }
-@media (prefers-reduced-motion: reduce) { .snowflake { display: none; } }
-`;
-
-function Snowfall() {
+export default function Snowfall() {
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      <style>{CSS}</style>
+    <div aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 0 }}>
+      <style>{`
+        @keyframes nb-fall {
+          from { transform: translate3d(0, -5vh, 0); }
+          to { transform: translate3d(var(--drift), 105vh, 0); }
+        }
+      `}</style>
       {FLAKES.map((f, i) => (
         <span
           key={i}
-          className="snowflake"
           style={{
+            position: 'absolute',
+            top: 0,
             left: `${f.left}%`,
-            animation: `snow-fall ${f.duration}s linear ${f.delay}s infinite`,
+            width: f.size,
+            height: f.size,
+            background: '#111',
+            opacity: 0.18,
             '--drift': `${f.drift}px`,
-            '--o': f.opacity,
-            ...(f.glyph
-              ? { fontSize: `${f.size * 2.4}px` }
-              : { width: `${f.size}px`, height: `${f.size}px`, borderRadius: '50%', background: '#fff' })
+            animation: `nb-fall ${f.duration}s linear ${f.delay}s infinite`,
           }}
-        >
-          {f.glyph ? '\u2744\uFE0E' : null}
-        </span>
+        />
       ))}
     </div>
   );
 }
-
-export default Snowfall;

@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'Pocket Me',
         short_name: 'Pocket Me',
         description: 'My personal AI assistant, organized into spaces.',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#e6e2da',
+        background_color: '#e6e2da',
         display: 'standalone',
         start_url: '/',
         icons: [
