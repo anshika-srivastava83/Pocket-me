@@ -5,24 +5,26 @@ function Landing({ spaces, onOpen, onNew }) {
   return (
     <div className="relative flex-1 overflow-hidden">
       <Snowfall />
-      <div className="relative z-10 h-full overflow-y-auto p-4">
-        <h1 className="text-xl font-semibold mb-4">Your spaces</h1>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {spaces.map((s) => (
+      <div className="relative z-10 h-full overflow-y-auto p-5 md:p-10">
+        <h1 className="nb-label mb-6">Your spaces</h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
+          {spaces.map((s, i) => (
             <button
               key={s.id}
               onClick={() => onOpen(s.id)}
-              className="text-left bg-slate-800/80 border border-slate-700 rounded-xl p-4 hover:bg-slate-700/80 transition"
+              style={{ '--i': i }}
+              className="nb-card nb-slide text-left p-5"
             >
-              <div className="font-semibold">{s.name}</div>
-              <div className="mt-1 text-xs text-slate-400 line-clamp-2">
-                {s.instructions || 'No instructions yet'}
+              <div className="text-lg font-bold">{s.name}</div>
+              <div className="mt-2 text-sm text-muted line-clamp-2">
+                {s.instructions || 'No instructions'}
               </div>
             </button>
           ))}
           <button
             onClick={onNew}
-            className="border border-dashed border-slate-600 rounded-xl p-4 text-slate-400 hover:text-slate-200 hover:border-slate-400 transition"
+            style={{ '--i': spaces.length }}
+            className="nb-slide text-left p-5 border-2 border-dashed border-ink rounded-sm font-mono text-sm font-bold uppercase tracking-wide"
           >
             + New space
           </button>

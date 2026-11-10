@@ -18,7 +18,6 @@
   --accent: #ff4d00;
   --hi: #f7f4ee;
   --lo: #c9c4b8;
-  --line: 2px solid var(--ink);
 }
 
 html, body, #root {
@@ -29,87 +28,47 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
-* { border-radius: 0; }
+button { cursor: pointer; }
 
 ::selection { background: var(--ink); color: var(--surface); }
-
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-/* Raised panel: soft neumorphic depth, hard ink border */
+/* Neumorphic raised card */
 .nb-card {
   background: var(--surface);
-  border: var(--line);
+  border: 2px solid var(--ink);
   border-radius: 4px;
   box-shadow: 8px 8px 16px var(--lo), -8px -8px 16px var(--hi);
+  transition: box-shadow 120ms ease;
 }
-
-/* Flat brutalist panel */
-.nb-panel {
-  background: var(--hi);
-  border: var(--line);
-  border-radius: 4px;
-  box-shadow: 6px 6px 0 var(--ink);
-}
-
-/* Button: hard shadow, presses into the page */
-.nb-btn {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink);
-  background: var(--surface);
-  border: var(--line);
-  border-radius: 4px;
-  padding: 0.55rem 0.9rem;
-  box-shadow: 4px 4px 0 var(--ink);
-  cursor: pointer;
-  transition: transform 80ms linear, box-shadow 80ms linear;
-}
-.nb-btn:hover { background: var(--hi); }
-.nb-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
-.nb-btn[disabled] { opacity: 0.45; cursor: not-allowed; box-shadow: 2px 2px 0 var(--ink); }
-.nb-btn-accent { background: var(--accent); color: var(--ink); }
-.nb-btn-accent:hover { background: var(--accent); filter: brightness(1.05); }
-
-/* Input: pressed in, neumorphic inset */
-.nb-input {
-  width: 100%;
-  font: inherit;
-  color: var(--ink);
-  background: var(--surface);
-  border: var(--line);
-  border-radius: 4px;
-  padding: 0.7rem 0.85rem;
+.nb-card:active {
   box-shadow: inset 4px 4px 8px var(--lo), inset -4px -4px 8px var(--hi);
 }
-.nb-input::placeholder { color: var(--muted); }
 
-/* Tabs */
-.nb-tab {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.5rem 0.8rem;
-  border: var(--line);
-  border-radius: 4px;
+/* Cards slide in from the left, one after another */
+.nb-slide {
+  animation: nb-slide 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+@keyframes nb-slide {
+  from { opacity: 0; transform: translateX(-28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Snowflakes: small raised bumps */
+.nb-flake {
+  position: absolute;
+  top: 0;
+  border-radius: 50%;
   background: var(--surface);
-  color: var(--ink);
-  cursor: pointer;
-  white-space: nowrap;
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  box-shadow: 2px 2px 4px var(--lo), -2px -2px 4px #ffffff;
+  animation: nb-fall linear infinite;
 }
-.nb-tab[aria-selected="true"] {
-  background: var(--ink);
-  color: var(--surface);
-  box-shadow: inset 3px 3px 6px rgba(0,0,0,0.5);
+@keyframes nb-fall {
+  from { transform: translate3d(0, -6vh, 0); }
+  to { transform: translate3d(var(--drift, 0px), 106vh, 0); }
 }
-
-/* Chat bubbles */
-.nb-msg-user { background: var(--ink); color: var(--surface); border: var(--line); border-radius: 4px; padding: 0.7rem 0.9rem; }
-.nb-msg-ai { background: var(--hi); color: var(--ink); border: var(--line); border-radius: 4px; padding: 0.7rem 0.9rem; box-shadow: 4px 4px 0 var(--ink); }
 
 .nb-label {
   font-family: "JetBrains Mono", ui-monospace, monospace;
@@ -119,12 +78,69 @@ html, body, #root {
   color: var(--muted);
 }
 
-/* Markdown inside AI replies */
-.nb-msg-ai code { font-family: "JetBrains Mono", monospace; background: var(--surface); border: 1px solid var(--ink); padding: 0 0.25rem; }
-.nb-msg-ai pre { background: var(--ink); color: var(--hi); padding: 0.8rem; overflow-x: auto; border: var(--line); }
-.nb-msg-ai pre code { background: transparent; border: 0; color: inherit; }
-.nb-msg-ai a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: var(--accent); }
+.nb-tab {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.5rem 0.8rem;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.nb-tab[aria-selected="true"] {
+  background: var(--ink);
+  color: var(--surface);
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.5);
+}
+
+.nb-btn {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  padding: 0.55rem 0.9rem;
+  box-shadow: 4px 4px 0 var(--ink);
+  transition: transform 80ms linear, box-shadow 80ms linear;
+}
+.nb-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
+.nb-btn-accent { background: var(--accent); }
+
+.nb-input {
+  width: 100%;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  padding: 0.7rem 0.85rem;
+  box-shadow: inset 4px 4px 8px var(--lo), inset -4px -4px 8px var(--hi);
+}
+.nb-input::placeholder { color: var(--muted); }
+.nb-input-sm { width: auto; padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+
+.nb-link {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: none;
+  border: 0;
+  color: inherit;
+}
+
+input[type="checkbox"] { accent-color: #111111; width: 1rem; height: 1rem; }
 
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  .nb-slide, .nb-flake { animation: none; }
 }
