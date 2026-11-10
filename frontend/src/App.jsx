@@ -318,53 +318,71 @@ function App() {
     return <Login />;
   }
 
+  const remindersSpace = spaces.find((s) => s.name === 'Reminders');
   return (
     <div className={`flex flex-col h-screen ${activeSpaceId ? 'bg-slate-900 text-slate-100' : 'bg-surface text-ink'}`}>
-      <header className="relative z-10 px-4 py-3 bg-surface text-ink border-b-2 border-ink flex flex-wrap items-center gap-3">
-        <span className="font-mono font-bold uppercase tracking-wider">Pocket Me</span>
-
-        <select
-          value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
-          className="nb-input nb-input-sm"
-        >
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-
-        <label className="flex items-center gap-2 nb-label">
-          <input
-            type="checkbox"
-            checked={autoFallback}
-            onChange={(e) => setAutoFallback(e.target.checked)}
-          />
-          Auto fallback
-        </label>
-
-        <button onClick={() => supabase.auth.signOut()} className="ml-auto nb-link">
-          Log out
-        </button>
-      </header>
-
-      {/* Top bar: Home only. Spaces live on the home page. */}
-      <div className="relative z-10 flex items-center gap-3 px-4 py-3 bg-surface text-ink border-b-2 border-ink">
+            <header className="relative z-10 px-4 py-3 bg-surface text-ink border-b-2 border-ink flex flex-wrap items-center gap-3">
         <button
-          role="tab"
-          aria-selected={!activeSpaceId}
           onClick={() => setActiveSpaceId('')}
-          className="nb-tab"
+          className="flex items-center gap-3 bg-transparent border-0 p-0"
         >
-          Home
+          <img
+            src="/pikachu.png"
+            alt=""
+            className="h-14 w-14 object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+          <span className="pm-title">Pocket Me</span>
         </button>
-        {activeSpace && (
-          <button onClick={openEditSpace} className="nb-tab" aria-selected="false">
-            Edit space
-          </button>
+
+        {activeSpaceId && (
+          <>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="nb-input nb-input-sm"
+            >
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+
+            <label className="flex items-center gap-2 nb-label">
+              <input
+                type="checkbox"
+                checked={autoFallback}
+                onChange={(e) => setAutoFallback(e.target.checked)}
+              />
+              Auto fallback
+            </label>
+          </>
         )}
-      </div>
+
+        <div className="ml-auto flex items-center gap-3">
+          {!activeSpaceId && remindersSpace && (
+            <button onClick={() => setActiveSpaceId(remindersSpace.id)} className="nb-tab">
+              Reminders
+            </button>
+          )}
+          {activeSpaceId && (
+            <button onClick={() => setActiveSpaceId('')} className="nb-tab" aria-selected="false">
+              All spaces
+            </button>
+          )}
+          {activeSpace && (
+            <button onClick={openEditSpace} className="nb-tab" aria-selected="false">
+              Edit space
+            </button>
+          )}
+          <button onClick={() => supabase.auth.signOut()} className="nb-link">
+            Log out
+          </button>
+        </div>
+      </header>
 
       {showForm && (
         <form onSubmit={createSpace} className="relative z-10 p-4 bg-surface text-ink border-b-2 border-ink space-y-3">

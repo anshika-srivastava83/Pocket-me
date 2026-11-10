@@ -1,6 +1,6 @@
-const FLAKES = Array.from({ length: 40 }, (_, i) => ({
+const FLAKES = Array.from({ length: 36 }, (_, i) => ({
   left: (i * 37) % 100,
-  size: 5 + ((i * 7) % 6),
+  size: 12 + ((i * 7) % 14),
   delay: -((i * 1.9) % 16),
   duration: 11 + ((i * 3) % 9),
   drift: ((i * 13) % 50) - 25,
@@ -18,13 +18,14 @@ export default function Snowfall() {
           className="nb-flake"
           style={{
             left: `${f.left}%`,
-            width: f.size,
-            height: f.size,
+            fontSize: f.size,
             animationDuration: `${f.duration}s`,
             animationDelay: `${f.delay}s`,
             '--drift': `${f.drift}px`,
           }}
-        />
+        >
+          {'\u2744\uFE0E'}
+        </span>
       ))}
     </div>
   );

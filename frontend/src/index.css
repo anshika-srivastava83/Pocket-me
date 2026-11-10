@@ -55,15 +55,21 @@ button { cursor: pointer; }
   to { opacity: 1; transform: translateX(0); }
 }
 
-/* Snowflakes: small raised bumps */
 .nb-flake {
   position: absolute;
   top: 0;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 1px solid rgba(17, 17, 17, 0.14);
-  box-shadow: 2px 2px 4px var(--lo), -2px -2px 4px #ffffff;
+  line-height: 1;
+  color: rgba(70, 95, 120, 0.5);
   animation: nb-fall linear infinite;
+}
+
+.pm-title {
+  font-family: "Fredoka", "Space Grotesk", system-ui, sans-serif;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--ink);
 }
 @keyframes nb-fall {
   from { transform: translate3d(0, -6vh, 0); }
