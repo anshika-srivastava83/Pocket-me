@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './Login';
 import Reminders from './reminders';
-import Landing from './Landing';
+import Landing from './landing';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
