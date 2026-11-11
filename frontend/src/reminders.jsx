@@ -46,43 +46,50 @@ function Reminders({ token }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface p-4">
-      <form onSubmit={handleSubmit} className="nb-panel w-full max-w-sm space-y-4 p-6">
-        <h1 className="font-mono text-xl font-bold uppercase tracking-wider">Pocket Me</h1>
-        <p className="nb-label">{isSignup ? 'Create your account' : 'Log in to continue'}</p>
+    <div className="p-4 bg-surface border-b-2 border-ink space-y-3">
+      <h2 className="nb-label">Reminders</h2>
 
+      <form onSubmit={addReminder} className="flex flex-wrap gap-3">
         <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What do you need to remember?"
+          maxLength={200}
           required
-          className="nb-input"
+          className="nb-input nb-input-sm flex-1 min-w-40"
         />
         <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
+          type="datetime-local"
+          value={when}
+          onChange={(e) => setWhen(e.target.value)}
           required
-          minLength={isSignup ? 6 : undefined}
-          className="nb-input"
+          className="nb-input nb-input-sm"
         />
-
-        {message && <p className="text-sm font-bold text-accent">{message}</p>}
-
-        <button type="submit" disabled={busy} className="nb-btn nb-btn-accent w-full">
-          {busy ? 'Please wait' : isSignup ? 'Sign up' : 'Log in'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setIsSignup(!isSignup); setMessage(''); }}
-          className="nb-link w-full text-center"
-        >
-          {isSignup ? 'Already have an account? Log in' : 'New here? Sign up'}
+        <button type="submit" className="nb-btn nb-btn-accent">
+          Add
         </button>
       </form>
+
+      {error && <p className="text-sm font-bold text-accent">{error}</p>}
+
+      {reminders.length === 0 ? (
+        <p className="nb-label">No reminders yet</p>
+      ) : (
+        <ul className="space-y-2 max-h-48 overflow-y-auto">
+          {reminders.map((r) => (
+            <li key={r.id} className="flex items-center gap-3 bg-hi px-3 py-2 text-sm">
+              <div className="flex-1 min-w-0">
+                <div className="truncate font-bold">{r.title}</div>
+                <div className="font-mono text-xs text-muted">{new Date(r.remind_at).toLocaleString()}</div>
+              </div>
+              <button type="button" onClick={() => deleteReminder(r.id)} className="nb-link">
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

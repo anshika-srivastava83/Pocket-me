@@ -38,6 +38,7 @@ function App() {
   const [activeSpaceId, setActiveSpaceId] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [spacesLoaded, setSpacesLoaded] = useState(false);
   const [newName, setNewName] = useState('');
   const [newInstructions, setNewInstructions] = useState('');
   const [formError, setFormError] = useState('');
@@ -78,7 +79,16 @@ function App() {
 
   // Once logged in, load the model list and the spaces.
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setSpaces([]);
+      setSpacesLoaded(false);
+      setActiveSpaceId('');
+      setActiveChatId(null);
+      setChatList([]);
+      setMessages([]);
+      setDrawerOpen(false);
+      return;
+    }
     const headers = { Authorization: `Bearer ${token}` };
 
     fetch('/api/models', { headers })
@@ -96,6 +106,7 @@ function App() {
       .then((list) => {
         if (Array.isArray(list)) {
           setSpaces(list);
+          setSpacesLoaded(true);
           //if (list.length > 0) setActiveSpaceId((current) => current || list[0].id);
         }
       })
@@ -201,7 +212,7 @@ function App() {
     e.preventDefault();
     setFormError('');
 
-        const res = await fetch(editingSpaceId ? `/api/spaces/${editingSpaceId}` : '/api/spaces', {
+      const res = await fetch(editingSpaceId ? `/api/spaces/${editingSpaceId}` : '/api/spaces', {
       method: editingSpaceId ? 'PATCH' : 'POST',
       headers: authHeaders,
       body: JSON.stringify({ name: newName, instructions: newInstructions })
@@ -216,7 +227,7 @@ function App() {
       setSpaces((prev) => prev.map((s) => (s.id === data.id ? data : s)));
     } else {
       setSpaces((prev) => [...prev, data]);
-      setActiveSpaceId(data.id);
+      openSpace(data.id);
     }
     closeSpaceForm();
   };
@@ -249,6 +260,7 @@ function App() {
     }
     const remaining = spaces.filter((s) => s.id !== editingSpaceId);
     setSpaces(remaining);
+    window.history.replaceState({ spaceId: '' }, '');
     setActiveSpaceId('');
     closeSpaceForm();
   };
@@ -306,7 +318,39 @@ function App() {
     }
   };
 
-   // These checks come after all the hooks above, which React requires.
+    // Back button support: every screen change is a browser history entry.
+  useEffect(() => {
+    window.history.replaceState({ spaceId: '' }, '');
+    const onPop = (e) => {
+      const s = e.state || {};
+      setActiveSpaceId(s.spaceId || '');
+      setDrawerOpen(Boolean(s.drawer));
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const openSpace = (id) => {
+    if (id === activeSpaceId) {
+      if (drawerOpen) window.history.back();
+      return;
+    }
+    if (drawerOpen) window.history.replaceState({ spaceId: id }, '');
+    else window.history.pushState({ spaceId: id }, '');
+    setActiveSpaceId(id);
+    setDrawerOpen(false);
+  };
+
+  const openDrawer = () => {
+    window.history.pushState({ spaceId: activeSpaceId, drawer: true }, '');
+    setDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    if (drawerOpen) window.history.back();
+  };
+
+  // These checks come after all the hooks above, which React requires.
   if (authLoading) {
     return <div className="h-screen p-4 bg-surface nb-label">Loading</div>;
   }
@@ -320,27 +364,32 @@ function App() {
     <div className="flex flex-col h-screen bg-surface text-ink">
       <Drawer
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeDrawer}
         spaces={spaces}
         activeSpaceId={activeSpaceId}
-        onSelect={(id) => {
-          setActiveSpaceId(id);
-          setDrawerOpen(false);
-        }}
+        onSelect={openSpace}
         onNew={() => {
-          setDrawerOpen(false);
-          setActiveSpaceId('');
+          openSpace('');
           setShowForm(true);
         }}
-        onLogout={() => supabase.auth.signOut()}
+        onLogout={() => {
+          setDrawerOpen(false);
+          supabase.auth.signOut();
+        }}
       />
 
       <header className="relative z-10 px-4 py-3 bg-surface border-b-2 border-ink flex flex-wrap items-center gap-3">
-        <button onClick={() => setDrawerOpen(true)} className="nb-btn" aria-label="Open spaces menu">
-          Spaces
+        <button onClick={openDrawer} className="nb-btn nb-icon-btn" aria-label="Open menu">
+          <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true">
+            <rect y="0" width="20" height="2" fill="currentColor" />
+            <rect y="6" width="20" height="2" fill="currentColor" />
+            <rect y="12" width="20" height="2" fill="currentColor" />
+          </svg>
         </button>
-        <span className="font-mono font-bold uppercase tracking-wider">Pocket Me</span>
-        <span className="nb-label">{activeSpace ? activeSpace.name : 'Home'}</span>
+        <button onClick={() => openSpace('')} className="font-mono font-bold uppercase tracking-wider">
+          Pocket Me
+        </button>
+        {activeSpace && <span className="nb-label">{activeSpace.name}</span>}
 
         {activeSpace && !inReminders && (
           <>
@@ -408,7 +457,7 @@ function App() {
       )}
 
       {!activeSpaceId ? (
-        <Landing spaces={spaces} onOpen={setActiveSpaceId} />
+        <Landing spaces={spaces} loaded={spacesLoaded} onOpen={openSpace} />
       ) : (
         <>
           <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b-2 border-ink">

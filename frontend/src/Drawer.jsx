@@ -12,20 +12,18 @@ function Drawer({ open, onClose, spaces, activeSpaceId, onSelect, onNew, onLogou
           </button>
         </div>
 
-        <nav className="nb-drawer-list">
-          <button className="nb-chip" aria-selected={!activeSpaceId} onClick={() => onSelect('')}>
-            Home
-          </button>
+        <nav className="nb-drawer-nav">
           {spaces.map((s) => (
             <button
               key={s.id}
-              className="nb-chip"
-              aria-selected={s.id === activeSpaceId}
+              className="nb-row"
+              aria-current={s.id === activeSpaceId ? 'page' : undefined}
               onClick={() => onSelect(s.id)}
             >
               {s.name}
             </button>
           ))}
+          {spaces.length === 0 && <p className="nb-label px-2">No spaces yet. Tap + to add one.</p>}
         </nav>
 
         <div className="nb-drawer-foot">
