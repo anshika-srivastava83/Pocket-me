@@ -1,5 +1,5 @@
 import React from 'react';
-import Snowfall from './Snowfall';
+import Snowfall from './snowfall';
 
 function Landing({ spaces, onOpen }) {
   return (
