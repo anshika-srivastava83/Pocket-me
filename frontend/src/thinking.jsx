@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import pikachu from './assets/pikachu.png';
 
 const PHRASES = [
   'Thinking',
@@ -18,7 +19,7 @@ export default function Thinking() {
 
   return (
     <div className="pm-thinking" role="status" aria-live="polite">
-      <img src="/pikachu.png" alt="" className="pm-pika" />
+        <img src={pikachu} alt="" className="pm-pika" />
       <span key={i} className="nb-label">{PHRASES[i]}...</span>
     </div>
   );
