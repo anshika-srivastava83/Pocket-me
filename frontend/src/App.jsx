@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Drawer from './Drawer';
 import ChatSidebar from './ChatSidebar';
+import Thinking from './thinking';
 
 const markdownComponents = {
   p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
@@ -29,6 +30,42 @@ const markdownComponents = {
   td: ({ children }) => <td className="border-2 border-ink px-2 py-1">{children}</td>
 };
 
+const iconProps = {
+  width: 18,
+  height: 18,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true
+};
+
+const CopyIcon = () => (
+  <svg {...iconProps}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+  </svg>
+);
+const CheckIcon = () => (
+  <svg {...iconProps}>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);
+const EditIcon = () => (
+  <svg {...iconProps}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </svg>
+);
+const RetryIcon = () => (
+  <svg {...iconProps}>
+    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+    <path d="M3 3v5h5" />
+  </svg>
+);
+
 function App() {
   // Login state
   const [session, setSession] = useState(null);
@@ -49,6 +86,7 @@ function App() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [chatError, setChatError] = useState('');
+  const [copiedIndex, setCopiedIndex] = useState(null);
 
   // Chats state: the chat list for the open space, and which chat is open
   const [chatList, setChatList] = useState([]);
@@ -209,9 +247,11 @@ function App() {
     }
   };
 
-  const copyText = async (text) => {
+  const copyText = async (text, index) => {
     try {
       await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 1500);
     } catch {
       // Clipboard access can fail on non-secure pages. Nothing to do.
     }
@@ -530,22 +570,17 @@ function App() {
                       </ReactMarkdown>
                     )}
                     {msg.provider && <div className="mt-2 nb-label">via {msg.provider}</div>}
-                    <div className="mt-2 flex gap-4">
-                      <button type="button" onClick={() => copyText(msg.text)} className="nb-link">
-                        Copy
+                    <div className="mt-2 flex gap-1 -ml-1">
+                      <button type="button" onClick={() => copyText(msg.text, index)} className="nb-msg-action" aria-label="Copy" title="Copy">
+                        {copiedIndex === index ? <CheckIcon /> : <CopyIcon />}
                       </button>
                       {msg.sender === 'user' && (
                         <>
-                          <button type="button" onClick={() => editMessage(msg.text)} className="nb-link">
-                            Edit
+                          <button type="button" onClick={() => editMessage(msg.text)} className="nb-msg-action" aria-label="Edit" title="Edit">
+                            <EditIcon />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => sendText(msg.text)}
-                            disabled={loading}
-                            className="nb-link"
-                          >
-                            Resend
+                          <button type="button" onClick={() => sendText(msg.text)} disabled={loading} className="nb-msg-action" aria-label="Resend" title="Resend">
+                            <RetryIcon />
                           </button>
                         </>
                       )}
@@ -553,7 +588,7 @@ function App() {
                   </div>
                 </div>
               ))}
-              {loading && <div className="nb-label">Waiting for reply</div>}
+              {loading && <Thinking />}
             </div>
 
             <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
@@ -564,8 +599,8 @@ function App() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
-                    // On desktop, Enter sends and Shift+Enter adds a new line. On a phone, Enter adds a new line.
-                    if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width: 768px)').matches) {
+                    // Enter sends. Shift+Enter adds a new line.
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                       e.preventDefault();
                       sendText(input);
                     }
