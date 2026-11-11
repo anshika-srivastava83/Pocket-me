@@ -310,7 +310,7 @@ input[type="checkbox"] { accent-color: #111111; width: 1rem; height: 1rem; }
 /* Thinking indicator */
 .pm-thinking { display: flex; align-items: center; gap: 0.6rem; }
 .pm-pika {
-  height: 44px;
+  height: 20px;
   width: auto;
   transform-origin: 50% 90%;
   animation: pm-wiggle 0.9s ease-in-out infinite alternate;
