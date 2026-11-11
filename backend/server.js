@@ -19,7 +19,7 @@ const SUMMARY_EVERY = 2;
 // How many other chats in the same space are used as background.
 const SUMMARY_MAX_OTHER_CHATS = 5;
 
-const DEFAULT_SPACES = [
+/*const DEFAULT_SPACES = [
     { name: 'Coding', instructions: 'You are my coding mentor. I am a beginner learning DSA with Java and web development. Explain simply, give code in small parts, and explain what each part does.' },
     { name: 'Mehfil', instructions: 'You are a mentor and partner for my open mic and event business called Mehfil. Help with planning, promotion and ideas.' },
     { name: 'Brand and Resume', instructions: 'Help me build my student brand and tailor my resume to job descriptions. Never add skills or achievements I have not told you about.' },
@@ -27,7 +27,7 @@ const DEFAULT_SPACES = [
     { name: 'College', instructions: 'Help me keep track of my college projects and files.' },
     { name: 'Miscellaneous', instructions: '' },
     { name: 'Reminders', instructions: 'Help me track deadlines, important dates and birthdays.' }
-];
+];*/
 
 // Fold new messages into the chat's saved summary.
 async function updateSummary(chatId, userId, summarizedCount, oldSummary) {
@@ -103,23 +103,7 @@ app.get('/api/spaces', requireAuth, async (req, res) => {
         return res.status(500).json({ success: false, error: error.message });
     }
 
-    if (data.length > 0) {
-        return res.json(data);
-    }
-
-    const rows = DEFAULT_SPACES.map((s, i) => ({ ...s, position: i, user_id: req.user.id }));
-    const { data: seeded, error: seedError } = await supabase
-        .from('spaces')
-        .insert(rows)
-        .select('id, name, instructions');
-
-    if (seedError) {
-        console.error('Seed spaces failed:', seedError.message);
-        return res.status(500).json({ success: false, error: seedError.message });
-    }
-    const order = DEFAULT_SPACES.map((s) => s.name);
-    seeded.sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
-    res.json(seeded);
+    res.json(data);
 });
 
 app.post('/api/spaces', requireAuth, async (req, res) => {
@@ -318,7 +302,7 @@ app.delete('/api/reminders/:id', requireAuth, async (req, res) => {
 app.get('/api/spaces/:spaceId/chats', requireAuth, async (req, res) => {
     const { data, error } = await supabase
         .from('chats')
-        .select('id, title, created_at')
+        .select('id, title, created_at, pinned')
         .eq('space_id', req.params.spaceId)
         .eq('user_id', req.user.id)
         .order('created_at', { ascending: false });
@@ -346,24 +330,34 @@ app.get('/api/chats/:chatId/messages', requireAuth, async (req, res) => {
     res.json(data);
 });
 
-// Rename a chat
+// Rename a chat or pin and unpin it
 app.patch('/api/chats/:chatId', requireAuth, async (req, res) => {
-    const title = (req.body.title || '').trim();
+    const updates = {};
 
-    if (!title || title.length > 100) {
-        return res.status(400).json({ success: false, error: 'Title is required and must be 100 characters or less.' });
+    if (req.body.title !== undefined) {
+        const title = String(req.body.title).trim();
+        if (!title || title.length > 100) {
+            return res.status(400).json({ success: false, error: 'Title is required and must be 100 characters or less.' });
+        }
+        updates.title = title;
+    }
+    if (req.body.pinned !== undefined) {
+        updates.pinned = req.body.pinned === true;
+    }
+    if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ success: false, error: 'Nothing to update.' });
     }
 
     const { data, error } = await supabase
         .from('chats')
-        .update({ title })
+        .update(updates)
         .eq('id', req.params.chatId)
         .eq('user_id', req.user.id)
-        .select('id, title')
+        .select('id, title, pinned')
         .maybeSingle();
 
     if (error) {
-        console.error('Rename chat failed:', error.message);
+        console.error('Update chat failed:', error.message);
         return res.status(500).json({ success: false, error: error.message });
     }
     if (!data) {
