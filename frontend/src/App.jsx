@@ -6,6 +6,7 @@ import Landing from './landing';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Drawer from './Drawer';
+import ChatSidebar from './ChatSidebar';
 
 const markdownComponents = {
   p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
@@ -39,6 +40,8 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [spacesLoaded, setSpacesLoaded] = useState(false);
+  const [chatsOpen, setChatsOpen] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newInstructions, setNewInstructions] = useState('');
   const [formError, setFormError] = useState('');
@@ -149,8 +152,8 @@ function App() {
     }
   };
 
-  const startRename = () => {
-    const current = chatList.find((c) => c.id === activeChatId);
+  const startRename = (chatId) => {
+    const current = chatList.find((c) => c.id === chatId);
     if (!current) return;
     setRenameValue(current.title);
     setChatError('');
@@ -179,14 +182,30 @@ function App() {
     }
   };
 
-  const deleteChat = async () => {
-    if (!activeChatId) return;
+  const togglePin = async (chatId) => {
+    const current = chatList.find((c) => c.id === chatId);
+    if (!current) return;
+    const pinned = !current.pinned;
+    setChatList((prev) => prev.map((c) => (c.id === chatId ? { ...c, pinned } : c)));
+    try {
+      const res = await fetch(`/api/chats/${chatId}`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ pinned })
+      });
+      if (!res.ok) throw new Error('failed');
+    } catch {
+      setChatList((prev) => prev.map((c) => (c.id === chatId ? { ...c, pinned: !pinned } : c)));
+    }
+  };
+
+  const deleteChat = async (chatId) => {
     if (!window.confirm('Delete this chat? This cannot be undone.')) return;
 
-    const res = await fetch(`/api/chats/${activeChatId}`, { method: 'DELETE', headers: authHeaders });
+    const res = await fetch(`/api/chats/${chatId}`, { method: 'DELETE', headers: authHeaders });
     if (res.ok) {
-      setChatList((prev) => prev.filter((c) => c.id !== activeChatId));
-      startNewChat();
+      setChatList((prev) => prev.filter((c) => c.id !== chatId));
+      if (chatId === activeChatId) startNewChat();
     }
   };
 
@@ -325,6 +344,7 @@ function App() {
       const s = e.state || {};
       setActiveSpaceId(s.spaceId || '');
       setDrawerOpen(Boolean(s.drawer));
+      setChatsOpen(false);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -358,7 +378,7 @@ function App() {
     return <Login />;
   }
 
-  const inReminders = activeSpace?.name === 'Reminders';
+    const inReminders = activeSpace?.name === 'Reminders';
 
   return (
     <div className="flex flex-col h-screen bg-surface text-ink">
@@ -378,7 +398,7 @@ function App() {
         }}
       />
 
-      <header className="relative z-10 px-4 py-3 bg-surface border-b-2 border-ink flex flex-wrap items-center gap-3">
+      <header className="relative z-10 px-4 py-3 bg-surface border-b-2 border-ink flex items-center gap-3">
         <button onClick={openDrawer} className="nb-btn nb-icon-btn" aria-label="Open menu">
           <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true">
             <rect y="0" width="20" height="2" fill="currentColor" />
@@ -386,38 +406,34 @@ function App() {
             <rect y="12" width="20" height="2" fill="currentColor" />
           </svg>
         </button>
-        <button onClick={() => openSpace('')} className="font-mono font-bold uppercase tracking-wider">
+        <button onClick={() => openSpace('')} className="font-mono font-bold uppercase tracking-wider whitespace-nowrap">
           Pocket Me
         </button>
-        {activeSpace && <span className="nb-label">{activeSpace.name}</span>}
 
-        {activeSpace && !inReminders && (
-          <>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="nb-input nb-input-sm"
-            >
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-
-            <label className="flex items-center gap-2 nb-label">
-              <input
-                type="checkbox"
-                checked={autoFallback}
-                onChange={(e) => setAutoFallback(e.target.checked)}
-              />
-              Auto fallback
-            </label>
-
-            <button onClick={openEditSpace} className="ml-auto nb-link">
-              Edit space
-            </button>
-          </>
+        {activeSpace && (
+          <div className="ml-auto flex items-center gap-2 min-w-0">
+            {!inReminders && (
+              <button
+                onClick={() => setChatsOpen(true)}
+                className="nb-ghost md:hidden"
+                aria-label="Open chats"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="16" />
+                  <path d="M9 4v16" />
+                </svg>
+              </button>
+            )}
+            {!inReminders && (
+              <button onClick={openEditSpace} className="nb-ghost" aria-label="Edit space">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M4 20h4L19 9l-4-4L4 16v4z" />
+                  <path d="M13.5 6.5l4 4" />
+                </svg>
+              </button>
+            )}
+            <span className="nb-label truncate max-w-[40vw]">{activeSpace.name}</span>
+          </div>
         )}
       </header>
 
@@ -459,131 +475,162 @@ function App() {
       {!activeSpaceId ? (
         <Landing spaces={spaces} loaded={spacesLoaded} onOpen={openSpace} />
       ) : (
-        <>
-          <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b-2 border-ink">
-            <select
-              value={activeChatId || ''}
-              onChange={(e) => (e.target.value ? openChat(e.target.value) : startNewChat())}
-              className="nb-input nb-input-sm flex-1 min-w-0"
-            >
-              <option value="">New chat</option>
-              {chatList.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-            <button onClick={startNewChat} className="nb-btn whitespace-nowrap">
-              New chat
-            </button>
-            {activeChatId && (
-              <>
-                <button onClick={startRename} className="nb-btn whitespace-nowrap">
-                  Rename
-                </button>
-                <button onClick={deleteChat} className="nb-btn whitespace-nowrap">
-                  Delete
-                </button>
-              </>
-            )}
-          </div>
-
-          {renamingId && renamingId === activeChatId && (
-            <div className="px-4 py-3 bg-surface border-b-2 border-ink">
-              <form onSubmit={saveRename} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  maxLength={100}
-                  autoFocus
-                  className="nb-input nb-input-sm flex-1 min-w-0"
-                />
-                <button type="submit" className="nb-btn nb-btn-accent">
-                  Save
-                </button>
-                <button type="button" onClick={() => setRenamingId(null)} className="nb-btn">
-                  Cancel
-                </button>
-              </form>
-              {chatError && <p className="mt-2 text-sm font-bold text-accent">{chatError}</p>}
-            </div>
+        <div className="flex flex-1 min-h-0">
+          {!inReminders && (
+            <>
+              <div
+                onClick={() => setChatsOpen(false)}
+                aria-hidden="true"
+                className={`nb-scrim md:hidden ${chatsOpen ? 'nb-scrim-open' : ''}`}
+              />
+              <ChatSidebar
+                open={chatsOpen}
+                chats={chatList}
+                activeChatId={activeChatId}
+                onSelect={(id) => {
+                  openChat(id);
+                  setChatsOpen(false);
+                }}
+                onNew={() => {
+                  startNewChat();
+                  setChatsOpen(false);
+                }}
+                onTogglePin={togglePin}
+                onStartRename={startRename}
+                onDelete={deleteChat}
+                renamingId={renamingId}
+                renameValue={renameValue}
+                setRenameValue={setRenameValue}
+                onSaveRename={saveRename}
+                onCancelRename={() => setRenamingId(null)}
+                chatError={chatError}
+              />
+            </>
           )}
 
-          {inReminders && <Reminders token={token} />}
+          <div className="flex-1 flex flex-col min-w-0 min-h-0">
+            {inReminders && <Reminders token={token} />}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
-            {messages.length === 0 && activeSpace && (
-              <div className="nb-label">Start a conversation in {activeSpace.name}</div>
-            )}
-            {messages.map((msg, index) => (
-              <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[85%] md:max-w-2xl ${
-                    msg.sender === 'user' ? 'nb-msg-user whitespace-pre-wrap' : 'nb-msg-ai'
-                  }`}
-                >
-                  {msg.sender === 'user' ? (
-                    msg.text
-                  ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {msg.text}
-                    </ReactMarkdown>
-                  )}
-                  {msg.provider && <div className="mt-2 nb-label">via {msg.provider}</div>}
-                  <div className="mt-2 flex gap-4">
-                    <button type="button" onClick={() => copyText(msg.text)} className="nb-link">
-                      Copy
-                    </button>
-                    {msg.sender === 'user' && (
-                      <>
-                        <button type="button" onClick={() => editMessage(msg.text)} className="nb-link">
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => sendText(msg.text)}
-                          disabled={loading}
-                          className="nb-link"
-                        >
-                          Resend
-                        </button>
-                      </>
+            <div className="flex-1 overflow-y-auto p-4 space-y-5">
+              {messages.length === 0 && activeSpace && !inReminders && (
+                <div className="nb-label">Start a conversation in {activeSpace.name}</div>
+              )}
+              {messages.map((msg, index) => (
+                <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-[85%] md:max-w-2xl ${
+                      msg.sender === 'user' ? 'nb-msg-user whitespace-pre-wrap' : 'nb-msg-ai'
+                    }`}
+                  >
+                    {msg.sender === 'user' ? (
+                      msg.text
+                    ) : (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                        {msg.text}
+                      </ReactMarkdown>
                     )}
+                    {msg.provider && <div className="mt-2 nb-label">via {msg.provider}</div>}
+                    <div className="mt-2 flex gap-4">
+                      <button type="button" onClick={() => copyText(msg.text)} className="nb-link">
+                        Copy
+                      </button>
+                      {msg.sender === 'user' && (
+                        <>
+                          <button type="button" onClick={() => editMessage(msg.text)} className="nb-link">
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => sendText(msg.text)}
+                            disabled={loading}
+                            className="nb-link"
+                          >
+                            Resend
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            {loading && <div className="nb-label">Waiting for reply</div>}
-          </div>
+              ))}
+              {loading && <div className="nb-label">Waiting for reply</div>}
+            </div>
 
-          <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
-            <textarea
-              ref={inputRef}
-              rows={2}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                // On desktop, Enter sends and Shift+Enter adds a new line. On a phone, Enter adds a new line.
-                if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width: 768px)').matches) {
-                  e.preventDefault();
-                  sendText(input);
-                }
-              }}
-              placeholder={activeSpace ? `Message in ${activeSpace.name}` : 'Type a message'}
-              className="nb-input flex-1 resize-none"
-            />
-            {loading ? (
-              <button type="button" onClick={() => abortRef.current?.abort()} className="nb-btn">
-                Stop
-              </button>
-            ) : (
-              <button type="submit" className="nb-btn nb-btn-accent">
-                Send
-              </button>
-            )}
-          </form>
-        </>
+            <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
+              <div className="relative flex-1">
+                <textarea
+                  ref={inputRef}
+                  rows={2}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    // On desktop, Enter sends and Shift+Enter adds a new line. On a phone, Enter adds a new line.
+                    if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width: 768px)').matches) {
+                      e.preventDefault();
+                      sendText(input);
+                    }
+                  }}
+                  placeholder={activeSpace ? `Message in ${activeSpace.name}` : 'Type a message'}
+                  className="nb-input resize-none pr-11"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setModelMenuOpen((o) => !o)}
+                  className="nb-ghost absolute right-1.5 bottom-1.5"
+                  aria-label="Choose model"
+                  aria-expanded={modelMenuOpen}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+
+                {modelMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setModelMenuOpen(false)} />
+                    <div className="nb-menu nb-menu-up" role="menu">
+                      <div className="nb-label px-3 pt-2 pb-1">Model</div>
+                      {models.map((m, i) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={selectedModel === m.id || (!selectedModel && i === 0)}
+                          className="nb-menu-item"
+                          onClick={() => {
+                            setSelectedModel(m.id);
+                            setModelMenuOpen(false);
+                          }}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                      <label className="flex items-center gap-2 nb-label px-3 py-2 mt-1 border-t-2 border-ink">
+                        <input
+                          type="checkbox"
+                          checked={autoFallback}
+                          onChange={(e) => setAutoFallback(e.target.checked)}
+                        />
+                        Auto fallback
+                      </label>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {loading ? (
+                <button type="button" onClick={() => abortRef.current?.abort()} className="nb-btn">
+                  Stop
+                </button>
+              ) : (
+                <button type="submit" className="nb-btn nb-btn-accent">
+                  Send
+                </button>
+              )}
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
