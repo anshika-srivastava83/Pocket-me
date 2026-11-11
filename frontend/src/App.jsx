@@ -100,7 +100,7 @@ function App() {
   // Model picker state
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
-  const [autoFallback, setAutoFallback] = useState(false);
+  const [autoFallback, setAutoFallback] = useState(true);
 
   const token = session?.access_token;
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -641,14 +641,17 @@ function App() {
                           {m.label}
                         </button>
                       ))}
-                      <label className="flex items-center gap-2 nb-label px-3 py-2 mt-1 border-t-2 border-ink">
-                        <input
-                          type="checkbox"
-                          checked={autoFallback}
-                          onChange={(e) => setAutoFallback(e.target.checked)}
+                      <div className="flex items-center justify-between nb-label px-3 py-2 mt-1 border-t-2 border-ink">
+                        <span>Auto fallback</span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={autoFallback}
+                          aria-label="Auto fallback"
+                          onClick={() => setAutoFallback((v) => !v)}
+                          className="nb-switch"
                         />
-                        Auto fallback
-                      </label>
+                      </div>
                     </div>
                   </>
                 )}
