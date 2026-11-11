@@ -6,7 +6,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // "system" is the optional space instructions.
 // "signal" lets the caller cancel the request (used by the Stop button).
 
-async function callGemini(model, history, system, signal) {
+async function callGemini(apiKey, model, history, system, signal) {
     const body = {
         contents: history.map((m) => ({
             role: m.role === 'assistant' ? 'model' : 'user',
@@ -18,7 +18,7 @@ async function callGemini(model, history, system, signal) {
     const response = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         body,
-        { headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY }, timeout: 30000, signal }
+        { headers: { 'x-goog-api-key': apiKey }, timeout: 30000, signal }
     );
     const parts = response.data.candidates[0].content.parts;
     return parts.map((p) => p.text).filter(Boolean).join('');
@@ -50,22 +50,22 @@ async function withRetry(fn, signal) {
     }
 }
 
-function getModels() {
+function getModels(keys = {}) {
     const models = [];
 
-    if (process.env.GEMINI_API_KEY) {
+    if (keys.gemini) {
         [process.env.GEMINI_MODEL, process.env.GEMINI_FALLBACK_MODEL]
             .filter(Boolean)
             .forEach((name) =>
                 models.push({
                     id: `gemini:${name}`,
                     label: `Gemini ${name}`,
-                    run: (history, system, signal) => callGemini(name, history, system, signal)
+                    run: (history, system, signal) => callGemini(keys.gemini, name, history, system, signal)
                 })
             );
     }
 
-    if (process.env.GROQ_API_KEY) {
+    if (keys.groq) {
         [process.env.GROQ_MODEL, process.env.GROQ_FALLBACK_MODEL]
             .filter(Boolean)
             .forEach((name) =>
@@ -75,7 +75,7 @@ function getModels() {
                     run: (history, system, signal) =>
                         callOpenAICompatible(
                             'https://api.groq.com/openai/v1',
-                            process.env.GROQ_API_KEY,
+                            keys.groq,
                             name,
                             history,
                             system,
@@ -88,10 +88,10 @@ function getModels() {
     return models;
 }
 
-async function callAI(history, system, modelId, autoFallback = false, signal) {
-    const models = getModels();
+async function callAI(history, system, modelId, autoFallback = false, signal, keys = {}) {
+    const models = getModels(keys);
     if (models.length === 0) {
-        throw new Error('No AI providers configured. Check your .env file.');
+        throw new Error('No AI key set. Add your Gemini or Groq key in Settings.');
     }
 
     let queue;

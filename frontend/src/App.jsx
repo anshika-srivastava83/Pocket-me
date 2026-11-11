@@ -8,6 +8,8 @@ import remarkGfm from 'remark-gfm';
 import Drawer from './Drawer';
 import ChatSidebar from './ChatSidebar';
 import Thinking from './thinking';
+import Settings from './settings';
+import { CardsSkeleton, ChatSkeleton, PageLoader } from './skeleton';
 
 const markdownComponents = {
   p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
@@ -87,7 +89,9 @@ function App() {
   const [renameValue, setRenameValue] = useState('');
   const [chatError, setChatError] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
-
+  const [showSettings, setShowSettings] = useState(false);
+  const [savingSpace, setSavingSpace] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   // Chats state: the chat list for the open space, and which chat is open
   const [chatList, setChatList] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null); // null means a new, unsaved chat
@@ -131,6 +135,13 @@ function App() {
       return;
     }
     const headers = { Authorization: `Bearer ${token}` };
+
+    fetch('/api/settings', { headers })
+      .then((res) => res.json())
+      .then((s) => {
+        if (!s.hasGemini && !s.hasGroq) setShowSettings(true);
+      })
+      .catch(() => {});
 
     fetch('/api/models', { headers })
       .then((res) => res.json())
@@ -179,6 +190,7 @@ function App() {
   const openChat = async (chatId) => {
     setActiveChatId(chatId);
     setMessages([]);
+    setChatLoading(true);
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`, { headers: { Authorization: `Bearer ${token}` } });
       const list = await res.json();
@@ -187,9 +199,10 @@ function App() {
       }
     } catch (err) {
       setMessages([{ sender: 'ai', text: 'Could not load this chat.' }]);
+    } finally {
+      setChatLoading(false);
     }
   };
-
   const startRename = (chatId) => {
     const current = chatList.find((c) => c.id === chatId);
     if (!current) return;
@@ -269,29 +282,53 @@ function App() {
 
   const createSpace = async (e) => {
     e.preventDefault();
+    if (savingSpace) return;
     setFormError('');
 
-      const res = await fetch(editingSpaceId ? `/api/spaces/${editingSpaceId}` : '/api/spaces', {
-      method: editingSpaceId ? 'PATCH' : 'POST',
-      headers: authHeaders,
-      body: JSON.stringify({ name: newName, instructions: newInstructions })
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      setFormError(data.error || 'Could not save the space.');
+    if (editingSpaceId) {
+      const id = editingSpaceId;
+      const previous = spaces;
+      const name = newName.trim();
+      const instructions = newInstructions.trim();
+      setSpaces((prev) => prev.map((s) => (s.id === id ? { ...s, name, instructions } : s)));
+      closeSpaceForm();
+      fetch(`/api/spaces/${id}`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ name, instructions })
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error('failed');
+        })
+        .catch(() => {
+          setSpaces(previous);
+          window.alert('Could not save the space. Your change was reverted.');
+        });
       return;
     }
-    if (editingSpaceId) {
-      setSpaces((prev) => prev.map((s) => (s.id === data.id ? data : s)));
-    } else {
+
+    setSavingSpace(true);
+    try {
+      const res = await fetch('/api/spaces', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ name: newName, instructions: newInstructions })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFormError(data.error || `Could not save the space (status ${res.status}).`);
+        return;
+      }
       setSpaces((prev) => [...prev, data]);
       openSpace(data.id);
+      closeSpaceForm();
+    } catch {
+      setFormError('Could not reach the server. Try again.');
+    } finally {
+      setSavingSpace(false);
     }
-    closeSpaceForm();
   };
-
-  const closeSpaceForm = () => {
+const closeSpaceForm = () => {
     setEditingSpaceId(null);
     setNewName('');
     setNewInstructions('');
@@ -412,7 +449,7 @@ function App() {
 
   // These checks come after all the hooks above, which React requires.
   if (authLoading) {
-    return <div className="h-screen p-4 bg-surface nb-label">Loading</div>;
+    return <PageLoader />;
   }
   if (!session) {
     return <Login />;
@@ -435,6 +472,10 @@ function App() {
         onLogout={() => {
           setDrawerOpen(false);
           supabase.auth.signOut();
+        }}
+        onSettings={() => {
+          closeDrawer();
+          setShowSettings(true);
         }}
       />
 
@@ -475,8 +516,9 @@ function App() {
             <span className="nb-label truncate max-w-[40vw]">{activeSpace.name}</span>
           </div>
         )}
-      </header>
+        </header>
 
+      {showSettings && <Settings token={token} email={session?.user?.email} onClose={() => setShowSettings(false)} />}
       {showForm && (
         <form onSubmit={createSpace} className="relative z-10 p-4 bg-surface border-b-2 border-ink space-y-3">
           <input
@@ -497,8 +539,8 @@ function App() {
           />
           {formError && <p className="text-sm font-bold text-accent">{formError}</p>}
           <div className="flex flex-wrap items-center gap-3">
-            <button type="submit" className="nb-btn nb-btn-accent">
-              {editingSpaceId ? 'Save space' : 'Create space'}
+            <button type="submit" disabled={savingSpace} className="nb-btn nb-btn-accent">
+              {savingSpace ? 'Saving...' : editingSpaceId ? 'Save space' : 'Create space'}
             </button>
             <button type="button" onClick={closeSpaceForm} className="nb-btn">
               Cancel
@@ -513,7 +555,7 @@ function App() {
       )}
 
       {!activeSpaceId ? (
-        <Landing spaces={spaces} loaded={spacesLoaded} onOpen={openSpace} />
+        spacesLoaded ? <Landing spaces={spaces} loaded={spacesLoaded} onOpen={openSpace} /> : <CardsSkeleton />
       ) : (
         <div className="flex flex-1 min-h-0">
           {!inReminders && (
@@ -552,11 +594,12 @@ function App() {
             {inReminders && <Reminders token={token} />}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-5">
-              {messages.length === 0 && activeSpace && !inReminders && (
+          {chatLoading && <ChatSkeleton />}
+              {!chatLoading && messages.length === 0 && activeSpace && !inReminders && (
                 <div className="nb-label">Start a conversation in {activeSpace.name}</div>
               )}
               {messages.map((msg, index) => (
-                <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={index} className={`fade-in flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div
                     className={`max-w-[85%] md:max-w-2xl ${
                       msg.sender === 'user' ? 'nb-msg-user whitespace-pre-wrap' : 'nb-msg-ai'

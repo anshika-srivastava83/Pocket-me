@@ -16,7 +16,7 @@ function getAuth() {
 
 async function calendarRequest(method, path, data) {
     const { token } = await getAuth().getAccessToken();
-    const calendarId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID);
+    const calendarId = encodeURIComponent(calendarId);
     return axios({
         method,
         url: `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events${path}`,
@@ -27,7 +27,7 @@ async function calendarRequest(method, path, data) {
 }
 
 // Adds an event to your Google Calendar and returns its Google event id.
-async function createCalendarEvent(title, startDate) {
+async function createCalendarEvent(title, remindAt, startDate) {
     const end = new Date(startDate.getTime() + 15 * 60 * 1000);
     const response = await calendarRequest('post', '', {
         summary: title,
@@ -38,7 +38,7 @@ async function createCalendarEvent(title, startDate) {
     return response.data.id;
 }
 
-async function deleteCalendarEvent(eventId) {
+async function deleteCalendarEvent(eventId, calendarId) {
     try {
         await calendarRequest('delete', `/${encodeURIComponent(eventId)}`);
     } catch (err) {

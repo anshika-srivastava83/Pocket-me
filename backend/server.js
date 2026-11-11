@@ -5,6 +5,8 @@ const requireAuth = require('./middleware/requireAuth');
 const { callAI, getModels } = require('./services/aiService');
 const { createCalendarEvent, deleteCalendarEvent } = require('./services/googleCalendar');
 const { waitUntil } = require('@vercel/functions');
+const { getUserSettings } = require('./services/userSettings');
+const { encrypt } = require('./services/crypto');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,7 +32,7 @@ const SUMMARY_MAX_OTHER_CHATS = 5;
 ];*/
 
 // Fold new messages into the chat's saved summary.
-async function updateSummary(chatId, userId, summarizedCount, oldSummary) {
+async function updateSummary(chatId, userId, summarizedCount, oldSummary, keys) {
     const { count } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
@@ -57,7 +59,7 @@ async function updateSummary(chatId, userId, summarizedCount, oldSummary) {
         'and open tasks. Stay under 200 words. Reply with the new summary only.\n\n' +
         `Current summary:\n${oldSummary || '(none yet)'}\n\nNew messages:\n${transcript}`;
 
-    const result = await callAI([{ role: 'user', content: instruction }], '', undefined, true);
+    const result = await callAI([{ role: 'user', content: instruction }], '', undefined, true, undefined, keys);
 
     await supabase
         .from('chats')
@@ -72,8 +74,9 @@ app.get('/', (req, res) => {
     res.json({ message: 'Pocket Me backend is running successfully!' });
 });
 
-app.get('/api/models', requireAuth, (req, res) => {
-    res.json(getModels().map((m) => ({ id: m.id, label: m.label })));
+app.get('/api/models', requireAuth, async (req, res) => {
+    const s = await getUserSettings(req.user.id);
+    res.json(getModels({ gemini: s.geminiKey, groq: s.groqKey }).map((m) => ({ id: m.id, label: m.label })));
 });
 
 app.get('/api/health/db', requireAuth, async (req, res) => {
@@ -240,9 +243,13 @@ app.post('/api/reminders', requireAuth, async (req, res) => {
         return res.status(400).json({ success: false, error: 'A valid date and time is required.' });
     }
 
-        let eventId;
+        const { calendarId } = await getUserSettings(req.user.id);
+    if (!calendarId) {
+        return res.status(400).json({ success: false, error: 'Add your Google Calendar ID in Settings first.' });
+    }
+    let eventId;
     try {
-        eventId = await createCalendarEvent(title, remindAt);
+        eventId = await createCalendarEvent(title, remindAt, calendarId);
     } catch (err) {
         console.error('Google Calendar create failed:', err.response?.data?.error?.message || err.message);
         return res.status(502).json({ success: false, error: 'Could not add the reminder to Google Calendar.' });
@@ -256,7 +263,7 @@ app.post('/api/reminders', requireAuth, async (req, res) => {
 
     if (error) {
         console.error('Create reminder failed:', error.message);
-        await deleteCalendarEvent(eventId).catch(() => {});
+        await deleteCalendarEvent(eventId, calendarId).catch(() => {});
         return res.status(500).json({ success: false, error: error.message });
     }
     res.json(data);
@@ -274,9 +281,10 @@ app.delete('/api/reminders/:id', requireAuth, async (req, res) => {
         return res.status(404).json({ success: false, error: 'Reminder not found.' });
     }
 
-    if (reminder.google_event_id) {
+    const { calendarId } = await getUserSettings(req.user.id);
+    if (reminder.google_event_id && calendarId) {
         try {
-            await deleteCalendarEvent(reminder.google_event_id);
+            await deleteCalendarEvent(reminder.google_event_id, calendarId);
         } catch (err) {
             console.error('Google Calendar delete failed:', err.response?.data?.error?.message || err.message);
             return res.status(502).json({ success: false, error: 'Could not remove the reminder from Google Calendar.' });
@@ -502,9 +510,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         });
 
         // Ask the AI. If it fails, the user's message is still saved.
+        const settings = await getUserSettings(req.user.id);
+        const keys = { gemini: settings.geminiKey, groq: settings.groqKey };
+        if (!keys.gemini && !keys.groq) {
+            return res.status(400).json({ success: false, chatId: activeChatId, error: 'Add your Gemini or Groq API key in Settings first.' });
+        }
         let result;
         try {
-            result = await callAI(history, system, modelId, autoFallback === true, controller.signal);
+            result = await callAI(history, system, modelId, autoFallback === true, controller.signal, keys);
         } catch (aiError) {
             if (aiError.aborted) {
                 console.log('Request stopped by user.');
@@ -520,7 +533,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider });
 
         // Update the summary in the background. The reply does not wait for it.
-        const summaryJob = updateSummary(activeChatId, req.user.id, summarizedCount, chatSummary).catch((err) =>
+        const summaryJob = updateSummary(activeChatId, req.user.id, summarizedCount, chatSummary, keys).catch((err) =>
             console.error('Summary update failed:', err.message)
         );
         try {
@@ -539,6 +552,112 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('Chat route error:', error.message);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ---------- Settings (each user's own keys and calendar) ----------
+
+const hint = (k) => (k ? `${k.slice(0, 4)}...${k.slice(-4)}` : '');
+
+async function settingsStatus(userId) {
+    const s = await getUserSettings(userId);
+    return {
+        hasGemini: !!s.geminiKey,
+        hasGroq: !!s.groqKey,
+        geminiHint: hint(s.geminiKey),
+        groqHint: hint(s.groqKey),
+        calendarId: s.calendarId,
+        serviceEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || ''
+    };
+}
+
+app.get('/api/settings', requireAuth, async (req, res) => {
+    try {
+        res.json(await settingsStatus(req.user.id));
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.put('/api/settings', requireAuth, async (req, res) => {
+    try {
+        const geminiKey = String(req.body.geminiKey || '').trim();
+        const groqKey = String(req.body.groqKey || '').trim();
+        const row = { user_id: req.user.id, updated_at: new Date().toISOString() };
+
+        if (req.body.clearGemini === true) {
+            row.gemini_key = null;
+        } else if (geminiKey) {
+            if (!geminiKey.startsWith('AIza')) {
+                return res.status(400).json({ success: false, error: 'That does not look like a Gemini key (starts with AIza).' });
+            }
+            row.gemini_key = encrypt(geminiKey);
+        }
+
+        if (req.body.clearGroq === true) {
+            row.groq_key = null;
+        } else if (groqKey) {
+            if (!groqKey.startsWith('gsk_')) {
+                return res.status(400).json({ success: false, error: 'That does not look like a Groq key (starts with gsk_).' });
+            }
+            row.groq_key = encrypt(groqKey);
+        }
+
+        if (req.body.calendarId !== undefined) {
+            row.calendar_id = String(req.body.calendarId).trim().slice(0, 200) || null;
+        }
+
+        const { error } = await supabase.from('user_settings').upsert(row, { onConflict: 'user_id' });
+        if (error) return res.status(500).json({ success: false, error: error.message });
+
+        res.json(await settingsStatus(req.user.id));
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Checks each saved key and the calendar, so a user knows their setup works.
+app.post('/api/settings/test', requireAuth, async (req, res) => {
+    try {
+        const s = await getUserSettings(req.user.id);
+        const keys = { gemini: s.geminiKey, groq: s.groqKey };
+        const out = {
+            gemini: { ok: null, message: 'Not set.' },
+            groq: { ok: null, message: 'Not set.' },
+            calendar: { ok: null, message: 'Not set.' }
+        };
+
+        const tested = new Set();
+        for (const m of getModels(keys)) {
+            const provider = m.id.split(':')[0];
+            if (tested.has(provider)) continue;
+            tested.add(provider);
+            try {
+                await callAI([{ role: 'user', content: 'Reply with the single word OK.' }], '', m.id, false, undefined, keys);
+                out[provider] = { ok: true, message: 'Working.' };
+            } catch (e) {
+                out[provider] = { ok: false, message: String(e.message).slice(0, 300) };
+            }
+        }
+
+        if (s.calendarId) {
+            try {
+                const id = await createCalendarEvent('Pocket Me setup test (safe to ignore)', new Date(Date.now() + 3600000), s.calendarId);
+                await deleteCalendarEvent(id, s.calendarId).catch(() => {});
+                out.calendar = { ok: true, message: 'Working. A test event was created and removed.' };
+            } catch (e) {
+                const status = e.response?.status;
+                const message =
+                    status === 404 ? 'Calendar not found. Check the Calendar ID.'
+                    : status === 403 ? 'No permission. Share the calendar with the service email and choose Make changes to events.'
+                    : e.response?.data?.error?.message || e.message;
+                out.calendar = { ok: false, message };
+            }
+        }
+
+        res.json(out);
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
