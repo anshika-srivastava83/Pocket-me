@@ -1,0 +1,10 @@
+name: cleanup
+on:
+  schedule:
+    - cron: '0 3 1,15 * *'
+  workflow_dispatch:
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS -X POST "${{ secrets.BACKEND_URL }}/api/cron/cleanup" -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

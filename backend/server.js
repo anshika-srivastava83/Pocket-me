@@ -549,4 +549,13 @@ if (require.main === module) {
     });
 }
 
+const { cleanupOldMessages } = require('./services/cleanup');
+
+app.post('/api/cron/cleanup', (req, res) => {
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  waitUntil(cleanupOldMessages());
+  res.json({ started: true });
+});
 module.exports = app;
