@@ -25,11 +25,11 @@ function Login() {
     setBusy(false);
   };
 
-  return (
-    <div className="flex h-screen items-center justify-center bg-slate-900 text-slate-100 p-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 bg-slate-800 border border-slate-700 rounded-lg p-6">
-        <h1 className="text-xl font-bold">Pocket Me</h1>
-        <p className="text-sm text-slate-400">{isSignup ? 'Create your account' : 'Log in to continue'}</p>
+    return (
+    <div className="flex min-h-screen items-center justify-center bg-surface p-4">
+      <form onSubmit={handleSubmit} className="nb-panel w-full max-w-sm space-y-4 p-6">
+        <h1 className="font-mono text-xl font-bold uppercase tracking-wider">Pocket Me</h1>
+        <p className="nb-label">{isSignup ? 'Create your account' : 'Log in to continue'}</p>
 
         <input
           type="email"
@@ -37,7 +37,7 @@ function Login() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
           required
-          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+          className="nb-input"
         />
         <input
           type="password"
@@ -46,23 +46,19 @@ function Login() {
           placeholder="Password"
           required
           minLength={isSignup ? 6 : undefined}
-          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+          className="nb-input"
         />
 
-        {message && <p className="text-sm text-amber-300">{message}</p>}
+        {message && <p className="text-sm font-bold text-accent">{message}</p>}
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full bg-blue-600 py-2 rounded-lg font-semibold hover:bg-blue-500 transition disabled:opacity-50"
-        >
-          {busy ? 'Please wait...' : isSignup ? 'Sign up' : 'Log in'}
+        <button type="submit" disabled={busy} className="nb-btn nb-btn-accent w-full">
+          {busy ? 'Please wait' : isSignup ? 'Sign up' : 'Log in'}
         </button>
 
         <button
           type="button"
           onClick={() => { setIsSignup(!isSignup); setMessage(''); }}
-          className="w-full text-sm text-slate-400 hover:text-slate-200"
+          className="nb-link w-full text-center"
         >
           {isSignup ? 'Already have an account? Log in' : 'New here? Sign up'}
         </button>

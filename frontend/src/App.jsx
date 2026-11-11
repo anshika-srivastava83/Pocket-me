@@ -5,6 +5,7 @@ import Reminders from './reminders';
 import Landing from './landing';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Drawer from './Drawer';
 
 const markdownComponents = {
   p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
@@ -14,23 +15,17 @@ const markdownComponents = {
   ul: ({ children }) => <ul className="list-disc pl-5 mb-2">{children}</ul>,
   ol: ({ children }) => <ol className="list-decimal pl-5 mb-2">{children}</ol>,
   a: ({ children, href }) => (
-    <a href={href} target="_blank" rel="noreferrer" className="text-blue-400 underline">{children}</a>
+    <a href={href} target="_blank" rel="noreferrer">{children}</a>
   ),
-  pre: ({ children }) => (
-    <pre className="bg-slate-950 rounded-lg p-3 mb-2 overflow-x-auto text-sm [&_code]:bg-transparent [&_code]:p-0">
-      {children}
-    </pre>
-  ),
-  code: ({ children, className }) => (
-    <code className={`${className || ''} bg-slate-950 rounded px-1 text-sm`}>{children}</code>
-  ),
+  pre: ({ children }) => <pre className="mb-2 text-sm">{children}</pre>,
+  code: ({ children, className }) => <code className={`${className || ''} text-sm`}>{children}</code>,
   table: ({ children }) => (
     <div className="overflow-x-auto mb-2">
       <table className="text-sm border-collapse">{children}</table>
     </div>
   ),
-  th: ({ children }) => <th className="border border-slate-600 px-2 py-1 text-left">{children}</th>,
-  td: ({ children }) => <td className="border border-slate-600 px-2 py-1">{children}</td>
+  th: ({ children }) => <th className="border-2 border-ink px-2 py-1 text-left">{children}</th>,
+  td: ({ children }) => <td className="border-2 border-ink px-2 py-1">{children}</td>
 };
 
 function App() {
@@ -42,6 +37,7 @@ function App() {
   const [spaces, setSpaces] = useState([]);
   const [activeSpaceId, setActiveSpaceId] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newInstructions, setNewInstructions] = useState('');
   const [formError, setFormError] = useState('');
@@ -310,26 +306,43 @@ function App() {
     }
   };
 
-  // These checks come after all the hooks above, which React requires.
+   // These checks come after all the hooks above, which React requires.
   if (authLoading) {
-    return <div className="h-screen bg-slate-900 text-slate-400 p-4">Loading...</div>;
+    return <div className="h-screen p-4 bg-surface nb-label">Loading</div>;
   }
   if (!session) {
     return <Login />;
   }
 
-  const remindersSpace = spaces.find((s) => s.name === 'Reminders');
-  return (
-    <div className={`flex flex-col h-screen ${activeSpaceId ? 'bg-slate-900 text-slate-100' : 'bg-surface text-ink'}`}>
-            <header className="relative z-10 px-4 py-3 bg-surface text-ink border-b-2 border-ink flex flex-wrap items-center gap-3">
-        <button
-          onClick={() => setActiveSpaceId('')}
-          className="bg-transparent border-0 p-0"
-        >
-          <span className="pm-title">Pocket Me</span>
-        </button>
+  const inReminders = activeSpace?.name === 'Reminders';
 
-        {activeSpaceId && (
+  return (
+    <div className="flex flex-col h-screen bg-surface text-ink">
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        spaces={spaces}
+        activeSpaceId={activeSpaceId}
+        onSelect={(id) => {
+          setActiveSpaceId(id);
+          setDrawerOpen(false);
+        }}
+        onNew={() => {
+          setDrawerOpen(false);
+          setActiveSpaceId('');
+          setShowForm(true);
+        }}
+        onLogout={() => supabase.auth.signOut()}
+      />
+
+      <header className="relative z-10 px-4 py-3 bg-surface border-b-2 border-ink flex flex-wrap items-center gap-3">
+        <button onClick={() => setDrawerOpen(true)} className="nb-btn" aria-label="Open spaces menu">
+          Spaces
+        </button>
+        <span className="font-mono font-bold uppercase tracking-wider">Pocket Me</span>
+        <span className="nb-label">{activeSpace ? activeSpace.name : 'Home'}</span>
+
+        {activeSpace && !inReminders && (
           <>
             <select
               value={selectedModel}
@@ -351,40 +364,16 @@ function App() {
               />
               Auto fallback
             </label>
-          </>
-        )}
 
-        <div className="ml-auto flex items-center gap-3">
-          {!activeSpaceId && remindersSpace && (
-            <div className="relative">
-              <img
-                src="/pikachu.png"
-                alt=""
-                className="absolute -top-7 -left-6 h-12 w-12 object-contain pointer-events-none z-20 -rotate-12"
-              />
-              <button onClick={() => setActiveSpaceId(remindersSpace.id)} className="nb-tab">
-                Reminders
-              </button>
-            </div>
-          )}
-          {activeSpaceId && (
-            <button onClick={() => setActiveSpaceId('')} className="nb-tab" aria-selected="false">
-              All spaces
-            </button>
-          )}
-          {activeSpace && (
-            <button onClick={openEditSpace} className="nb-tab" aria-selected="false">
+            <button onClick={openEditSpace} className="ml-auto nb-link">
               Edit space
             </button>
-          )}
-          <button onClick={() => supabase.auth.signOut()} className="nb-link">
-            Log out
-          </button>
-        </div>
+          </>
+        )}
       </header>
 
       {showForm && (
-        <form onSubmit={createSpace} className="relative z-10 p-4 bg-surface text-ink border-b-2 border-ink space-y-3">
+        <form onSubmit={createSpace} className="relative z-10 p-4 bg-surface border-b-2 border-ink space-y-3">
           <input
             type="text"
             value={newName}
@@ -418,153 +407,133 @@ function App() {
         </form>
       )}
 
-      {/* Chat bar: only inside a space, never on the home page */}
-      {activeSpaceId && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border-b border-slate-700">
-          <select
-            value={activeChatId || ''}
-            onChange={(e) => (e.target.value ? openChat(e.target.value) : startNewChat())}
-            className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
-          >
-            <option value="">New chat</option>
-            {chatList.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={startNewChat}
-            className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-800 text-slate-300 hover:bg-slate-700"
-          >
-            New chat
-          </button>
-          {activeChatId && (
-            <>
-              <button
-                onClick={startRename}
-                className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-800 text-slate-300 hover:bg-slate-700"
-              >
-                Rename
-              </button>
-              <button
-                onClick={deleteChat}
-                className="whitespace-nowrap px-3 py-1 rounded-lg text-sm bg-slate-800 text-red-400 hover:bg-slate-700"
-              >
-                Delete
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
       {!activeSpaceId ? (
-        <Landing spaces={spaces} onOpen={setActiveSpaceId} onNew={() => setShowForm(true)} />
+        <Landing spaces={spaces} onOpen={setActiveSpaceId} />
       ) : (
         <>
-      {renamingId && renamingId === activeChatId && (
-        <div className="px-4 py-2 bg-slate-900 border-b border-slate-700">
-          <form onSubmit={saveRename} className="flex items-center gap-2">
-            <input
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              maxLength={100}
-              autoFocus
-              className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-blue-500"
-            />
-            <button type="submit" className="px-3 py-1 rounded-lg text-sm bg-blue-600 hover:bg-blue-500">
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={() => setRenamingId(null)}
-              className="px-3 py-1 rounded-lg text-sm text-slate-400 hover:text-slate-200"
+          <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b-2 border-ink">
+            <select
+              value={activeChatId || ''}
+              onChange={(e) => (e.target.value ? openChat(e.target.value) : startNewChat())}
+              className="nb-input nb-input-sm flex-1 min-w-0"
             >
-              Cancel
+              <option value="">New chat</option>
+              {chatList.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+            <button onClick={startNewChat} className="nb-btn whitespace-nowrap">
+              New chat
             </button>
-          </form>
-          {chatError && <p className="mt-1 text-sm text-amber-300">{chatError}</p>}
-        </div>
-      )}
-      
-
-      {activeSpace?.name === 'Reminders' && <Reminders token={token} />}
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && activeSpace && (
-          <div className="text-slate-400 text-sm">Start a conversation in {activeSpace.name}.</div>
-        )}
-        {messages.map((msg, index) => (
-          <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] md:max-w-2xl p-3 rounded-lg ${msg.sender === 'user' ? 'bg-blue-600 text-white whitespace-pre-wrap' : 'bg-slate-800 border border-slate-700'}`}>
-              {msg.sender === 'user' ? (
-                msg.text
-              ) : (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                  {msg.text}
-                </ReactMarkdown>
-              )}
-              {msg.provider && <div className="mt-2 text-xs text-slate-400">via {msg.provider}</div>}
-              <div className="mt-2 flex gap-3 text-xs opacity-70">
-                <button type="button" onClick={() => copyText(msg.text)} className="hover:underline">
-                  Copy
+            {activeChatId && (
+              <>
+                <button onClick={startRename} className="nb-btn whitespace-nowrap">
+                  Rename
                 </button>
-                {msg.sender === 'user' && (
-                  <>
-                    <button type="button" onClick={() => editMessage(msg.text)} className="hover:underline">
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => sendText(msg.text)}
-                      disabled={loading}
-                      className="hover:underline disabled:opacity-40"
-                    >
-                      Resend
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+                <button onClick={deleteChat} className="nb-btn whitespace-nowrap">
+                  Delete
+                </button>
+              </>
+            )}
           </div>
-        ))}
-        {loading && <div className="text-slate-400 text-sm">AI is thinking...</div>}
-      </div>
 
-      <form onSubmit={sendMessage} className="p-4 bg-slate-800 border-t border-slate-700 flex gap-2">
-        <textarea
-          ref={inputRef}
-          rows={2}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            // On desktop, Enter sends and Shift+Enter adds a new line. On a phone, Enter adds a new line.
-            if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width: 768px)').matches) {
-              e.preventDefault();
-              sendText(input);
-            }
-          }}
-          placeholder={activeSpace ? `Message in ${activeSpace.name}...` : 'Type a message...'}
-          className="flex-1 resize-none bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
-        />
-        {loading ? (
-          <button
-            type="button"
-            onClick={() => abortRef.current?.abort()}
-            className="bg-red-600 px-5 py-2 rounded-lg font-semibold hover:bg-red-500 transition"
-          >
-            Stop
-          </button>
-        ) : (
-          <button
-            type="submit"
-            className="bg-blue-600 px-5 py-2 rounded-lg font-semibold hover:bg-blue-500 transition"
-          >
-            Send
-          </button>
-        )}
-           </form>
+          {renamingId && renamingId === activeChatId && (
+            <div className="px-4 py-3 bg-surface border-b-2 border-ink">
+              <form onSubmit={saveRename} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  maxLength={100}
+                  autoFocus
+                  className="nb-input nb-input-sm flex-1 min-w-0"
+                />
+                <button type="submit" className="nb-btn nb-btn-accent">
+                  Save
+                </button>
+                <button type="button" onClick={() => setRenamingId(null)} className="nb-btn">
+                  Cancel
+                </button>
+              </form>
+              {chatError && <p className="mt-2 text-sm font-bold text-accent">{chatError}</p>}
+            </div>
+          )}
+
+          {inReminders && <Reminders token={token} />}
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            {messages.length === 0 && activeSpace && (
+              <div className="nb-label">Start a conversation in {activeSpace.name}</div>
+            )}
+            {messages.map((msg, index) => (
+              <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[85%] md:max-w-2xl ${
+                    msg.sender === 'user' ? 'nb-msg-user whitespace-pre-wrap' : 'nb-msg-ai'
+                  }`}
+                >
+                  {msg.sender === 'user' ? (
+                    msg.text
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {msg.text}
+                    </ReactMarkdown>
+                  )}
+                  {msg.provider && <div className="mt-2 nb-label">via {msg.provider}</div>}
+                  <div className="mt-2 flex gap-4">
+                    <button type="button" onClick={() => copyText(msg.text)} className="nb-link">
+                      Copy
+                    </button>
+                    {msg.sender === 'user' && (
+                      <>
+                        <button type="button" onClick={() => editMessage(msg.text)} className="nb-link">
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => sendText(msg.text)}
+                          disabled={loading}
+                          className="nb-link"
+                        >
+                          Resend
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {loading && <div className="nb-label">Waiting for reply</div>}
+          </div>
+
+          <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
+            <textarea
+              ref={inputRef}
+              rows={2}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                // On desktop, Enter sends and Shift+Enter adds a new line. On a phone, Enter adds a new line.
+                if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width: 768px)').matches) {
+                  e.preventDefault();
+                  sendText(input);
+                }
+              }}
+              placeholder={activeSpace ? `Message in ${activeSpace.name}` : 'Type a message'}
+              className="nb-input flex-1 resize-none"
+            />
+            {loading ? (
+              <button type="button" onClick={() => abortRef.current?.abort()} className="nb-btn">
+                Stop
+              </button>
+            ) : (
+              <button type="submit" className="nb-btn nb-btn-accent">
+                Send
+              </button>
+            )}
+          </form>
         </>
       )}
     </div>

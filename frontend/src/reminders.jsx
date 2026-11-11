@@ -46,57 +46,43 @@ function Reminders({ token }) {
   };
 
   return (
-    <div className="p-4 bg-slate-800 border-b border-slate-700 space-y-3">
-      <h2 className="font-semibold">Reminders</h2>
+    <div className="flex min-h-screen items-center justify-center bg-surface p-4">
+      <form onSubmit={handleSubmit} className="nb-panel w-full max-w-sm space-y-4 p-6">
+        <h1 className="font-mono text-xl font-bold uppercase tracking-wider">Pocket Me</h1>
+        <p className="nb-label">{isSignup ? 'Create your account' : 'Log in to continue'}</p>
 
-      <form onSubmit={addReminder} className="flex flex-wrap gap-2">
         <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="What do you need to remember?"
-          maxLength={200}
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
           required
-          className="flex-1 min-w-40 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          className="nb-input"
         />
         <input
-          type="datetime-local"
-          value={when}
-          onChange={(e) => setWhen(e.target.value)}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
           required
-          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          minLength={isSignup ? 6 : undefined}
+          className="nb-input"
         />
+
+        {message && <p className="text-sm font-bold text-accent">{message}</p>}
+
+        <button type="submit" disabled={busy} className="nb-btn nb-btn-accent w-full">
+          {busy ? 'Please wait' : isSignup ? 'Sign up' : 'Log in'}
+        </button>
+
         <button
-          type="submit"
-          className="bg-blue-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-500 transition"
+          type="button"
+          onClick={() => { setIsSignup(!isSignup); setMessage(''); }}
+          className="nb-link w-full text-center"
         >
-          Add
+          {isSignup ? 'Already have an account? Log in' : 'New here? Sign up'}
         </button>
       </form>
-
-      {error && <p className="text-sm text-amber-300">{error}</p>}
-
-      {reminders.length === 0 ? (
-        <p className="text-sm text-slate-400">No reminders yet.</p>
-      ) : (
-        <ul className="space-y-2 max-h-48 overflow-y-auto">
-          {reminders.map((r) => (
-            <li key={r.id} className="flex items-center gap-3 bg-slate-900 rounded-lg px-3 py-2 text-sm">
-              <div className="flex-1 min-w-0">
-                <div className="truncate">{r.title}</div>
-                <div className="text-xs text-slate-400">{new Date(r.remind_at).toLocaleString()}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => deleteReminder(r.id)}
-                className="text-slate-400 hover:text-red-400"
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
