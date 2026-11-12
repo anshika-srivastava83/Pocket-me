@@ -115,6 +115,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const abortRef = useRef(null);
   const inputRef = useRef(null);
+  const bottomRef = useRef(null);
 
   // Model picker state
   const [models, setModels] = useState([]);
@@ -124,6 +125,20 @@ function App() {
   const token = session?.access_token;
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
   const activeSpace = spaces.find((s) => s.id === activeSpaceId);
+
+  // Scroll down when you send a message or the AI starts thinking.
+  // A finished reply is not scrolled to its end, so you can read it from the top.
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.sender === 'user' || loading) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages, loading]);
+
+  // Jump straight to the latest message when a chat finishes opening.
+  useEffect(() => {
+    if (!chatLoading) bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, [chatLoading]);
 
   // Check for an existing login when the page opens, and listen for login or logout.
   useEffect(() => {
@@ -796,6 +811,7 @@ const closeSpaceForm = () => {
                 </div>
               ))}
               {loading && <Thinking />}
+              <div ref={bottomRef} />
             </div>
 
     <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
