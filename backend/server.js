@@ -640,8 +640,8 @@ app.put('/api/settings', requireAuth, async (req, res) => {
         if (req.body.clearGemini === true) {
             row.gemini_key = null;
         } else if (geminiKey) {
-            if (!geminiKey.startsWith('AIza')) {
-                return res.status(400).json({ success: false, error: 'That does not look like a Gemini key (starts with AIza).' });
+            if (geminiKey.length < 20 || /\s/.test(geminiKey)) {
+                return res.status(400).json({ success: false, error: 'That does not look like a valid Gemini key. Copy the whole key with no spaces.' });
             }
             row.gemini_key = encrypt(geminiKey);
         }

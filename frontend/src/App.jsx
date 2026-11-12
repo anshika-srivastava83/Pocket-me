@@ -139,7 +139,10 @@ function App() {
     fetch('/api/settings', { headers })
       .then((res) => res.json())
       .then((s) => {
-        if (!s.mode) setShowSettings(true);
+        if (!s.mode) {
+          window.history.pushState({ spaceId: '', settings: true }, '');
+          setShowSettings(true);
+        }
       })
       .catch(() => {});
 
@@ -421,6 +424,7 @@ const closeSpaceForm = () => {
       const s = e.state || {};
       setActiveSpaceId(s.spaceId || '');
       setDrawerOpen(Boolean(s.drawer));
+      setShowSettings(Boolean(s.settings));
       setChatsOpen(false);
     };
     window.addEventListener('popstate', onPop);
@@ -445,6 +449,20 @@ const closeSpaceForm = () => {
 
   const closeDrawer = () => {
     if (drawerOpen) window.history.back();
+  };
+
+  const openSettings = () => {
+    if (drawerOpen) {
+      window.history.replaceState({ spaceId: activeSpaceId, settings: true }, '');
+      setDrawerOpen(false);
+    } else {
+      window.history.pushState({ spaceId: activeSpaceId, settings: true }, '');
+    }
+    setShowSettings(true);
+  };
+
+  const closeSettings = () => {
+    if (showSettings) window.history.back();
   };
 
   // These checks come after all the hooks above, which React requires.
@@ -473,10 +491,7 @@ const closeSpaceForm = () => {
           setDrawerOpen(false);
           supabase.auth.signOut();
         }}
-        onSettings={() => {
-          closeDrawer();
-          setShowSettings(true);
-        }}
+        onSettings={openSettings}
       />
 
       <header className="relative z-10 px-4 py-3 bg-surface border-b-2 border-ink flex items-center gap-3">
@@ -518,7 +533,7 @@ const closeSpaceForm = () => {
         )}
         </header>
 
-      {showSettings && <Settings token={token} email={session?.user?.email} onClose={() => setShowSettings(false)} />}
+      {showSettings && <Settings token={token} email={session?.user?.email} onClose={closeSettings} />}
       {showForm && (
         <form onSubmit={createSpace} className="relative z-10 p-4 bg-surface border-b-2 border-ink space-y-3">
           <input

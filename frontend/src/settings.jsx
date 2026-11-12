@@ -225,7 +225,7 @@ function Settings({ token, email, onClose }) {
                   Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className={link}>aistudio.google.com/apikey</a> and sign in with Google.
                 </li>
                 <li>Click Create API key. If it asks for a project, create a new one.</li>
-                <li>Copy the key. It starts with AIza.</li>
+                <li>Copy the key. It starts with AQ. or AIza.</li>
                 <li>Open the My keys tab and paste it under Gemini key.</li>
               </ol>
             </Step>
