@@ -1,11 +1,32 @@
 import React from 'react';
 import Snowfall from './snowfall';
 
-function Landing({ spaces, loaded, onOpen }) {
+function ModeToggle({ mode, onChange }) {
+  if (!onChange) return null;
+  const btn = (m, label) => (
+    <button
+      type="button"
+      onClick={() => onChange(m)}
+      aria-pressed={mode === m}
+      className={`nb-btn ${mode === m ? 'nb-btn-accent' : ''}`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="mb-5 flex items-center gap-2">
+      {btn('shared', 'Shared AI')}
+      {btn('own', 'My keys')}
+    </div>
+  );
+}
+
+function Landing({ spaces, loaded, onOpen, mode, onModeChange }) {
   return (
     <div className="relative flex-1 overflow-hidden">
       <Snowfall />
       <div className="relative z-10 h-full overflow-y-auto p-5 md:p-10">
+        <ModeToggle mode={mode} onChange={onModeChange} />
         {loaded && spaces.length === 0 ? (
           <p className="nb-label max-w-sm">No spaces yet. Open the menu and tap + to create your first one.</p>
         ) : (

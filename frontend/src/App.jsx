@@ -9,6 +9,7 @@ import Drawer from './Drawer';
 import ChatSidebar from './ChatSidebar';
 import Thinking from './thinking';
 import Settings from './settings';
+import { fileToAttachment, buildMessage, UserMessage } from './attachments';
 import { CardsSkeleton, ChatSkeleton, PageLoader } from './skeleton';
 
 const markdownComponents = {
@@ -90,6 +91,11 @@ function App() {
   const [chatError, setChatError] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [aiStatus, setAiStatus] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [attaching, setAttaching] = useState(false);
+  const [attachError, setAttachError] = useState('');
+  const fileRef = useRef(null);
   const [savingSpace, setSavingSpace] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   // Chats state: the chat list for the open space, and which chat is open
@@ -139,6 +145,7 @@ function App() {
     fetch('/api/settings', { headers })
       .then((res) => res.json())
       .then((s) => {
+        setAiStatus(s);
         if (!s.mode) {
           window.history.pushState({ spaceId: '', settings: true }, '');
           setShowSettings(true);
@@ -364,9 +371,60 @@ const closeSpaceForm = () => {
     closeSpaceForm();
   };
 
+    const submit = () => {
+    if (loading || attaching) return;
+    const full = buildMessage(input, attachments);
+    if (!full.trim()) return;
+    setAttachments([]);
+    setAttachError('');
+    sendText(full);
+  };
+
   const sendMessage = (e) => {
     e.preventDefault();
-    sendText(input);
+    submit();
+  };
+
+  const onPickFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    setAttachError('');
+    if (attachments.length + files.length > 3) {
+      setAttachError('You can attach up to 3 files per message.');
+      return;
+    }
+    setAttaching(true);
+    try {
+      for (const f of files) {
+        const a = await fileToAttachment(f, token);
+        setAttachments((prev) => [...prev, a]);
+      }
+    } catch (err) {
+      setAttachError(err.message || 'Could not read that file.');
+    } finally {
+      setAttaching(false);
+    }
+  };
+
+  const changeMode = async (m) => {
+    if (!aiStatus || m === aiStatus.mode) return;
+    if (m === 'own' && !aiStatus.hasGemini && !aiStatus.hasGroq) {
+      openSettings();
+      return;
+    }
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify({ mode: m })
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data) setAiStatus(data);
+      else window.alert((data && data.error) || 'Could not switch.');
+    } catch {
+      window.alert('Could not reach the server.');
+    }
   };
 
   const sendText = async (text) => {
@@ -430,6 +488,17 @@ const closeSpaceForm = () => {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // Keep the home-page toggle in sync after Settings closes.
+  useEffect(() => {
+    if (showSettings || !token) return;
+    fetch('/api/settings', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((s) => {
+        if (s && !s.error) setAiStatus(s);
+      })
+      .catch(() => {});
+  }, [showSettings, token]);
 
   const openSpace = (id) => {
     if (id === activeSpaceId) {
@@ -570,7 +639,7 @@ const closeSpaceForm = () => {
       )}
 
       {!activeSpaceId ? (
-        spacesLoaded ? <Landing spaces={spaces} loaded={spacesLoaded} onOpen={openSpace} /> : <CardsSkeleton />
+        spacesLoaded ? <Landing spaces={spaces} loaded={spacesLoaded} onOpen={openSpace} mode={aiStatus?.mode} onModeChange={changeMode} /> : <CardsSkeleton />
       ) : (
         <div className="flex flex-1 min-h-0">
           {!inReminders && (
@@ -621,7 +690,7 @@ const closeSpaceForm = () => {
                     }`}
                   >
                     {msg.sender === 'user' ? (
-                      msg.text
+                      <UserMessage text={msg.text} />
                     ) : (
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                         {msg.text}
@@ -649,8 +718,44 @@ const closeSpaceForm = () => {
               {loading && <Thinking />}
             </div>
 
-            <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
+    <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                hidden
+                accept="image/*,.pdf,.docx,.txt,.md,.markdown,.csv,.tsv,.json,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.xml,.yml,.yaml,.sql,.log,.sh"
+                onChange={onPickFiles}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={attaching}
+                className="nb-btn nb-plus"
+                aria-label="Attach files"
+                title="Attach files"
+              >
+                +
+              </button>
               <div className="relative flex-1">
+                {(attachments.length > 0 || attaching || attachError) && (
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+                    {attachments.map((a, i) => (
+                      <span key={i} className="nb-label inline-flex items-center gap-2 border-2 border-ink px-2 py-1">
+                        {a.name}{a.cut ? ' (trimmed)' : ''}
+                        <button
+                          type="button"
+                          onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                          aria-label={`Remove ${a.name}`}
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))}
+                    {attaching && <span className="nb-label">Reading file...</span>}
+                    {attachError && <span className="font-bold text-accent">{attachError}</span>}
+                  </div>
+                )}
                 <textarea
                   ref={inputRef}
                   rows={2}
@@ -660,7 +765,7 @@ const closeSpaceForm = () => {
                     // Enter sends. Shift+Enter adds a new line.
                     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                       e.preventDefault();
-                      sendText(input);
+                      submit();
                     }
                   }}
                   placeholder={activeSpace ? `Message in ${activeSpace.name}` : 'Type a message'}

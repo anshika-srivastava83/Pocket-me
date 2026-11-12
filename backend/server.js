@@ -2,7 +2,7 @@ const express = require('express');
 require('dotenv').config();
 const supabase = require('./services/supabase');
 const requireAuth = require('./middleware/requireAuth');
-const { callAI, getModels } = require('./services/aiService');
+const { callAI, getModels, describeImage } = require('./services/aiService');
 const { createCalendarEvent, deleteCalendarEvent } = require('./services/googleCalendar');
 const { waitUntil } = require('@vercel/functions');
 const { getUserSettings } = require('./services/userSettings');
@@ -11,7 +11,7 @@ const { encrypt } = require('./services/crypto');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 
 // How many earlier messages are sent to the AI with each new one.
 const HISTORY_LIMIT = 20;
@@ -720,6 +720,47 @@ app.post('/api/settings/test', requireAuth, async (req, res) => {
         res.json(out);
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ---------- Attachments ----------
+
+app.post('/api/attachments/image', requireAuth, async (req, res) => {
+    try {
+        const { data, mime } = req.body || {};
+        if (typeof data !== 'string' || !/^image\/(jpeg|png|webp)$/.test(mime || '')) {
+            return res.status(400).json({ success: false, error: 'Unsupported image.' });
+        }
+        if (data.length > 2500000) {
+            return res.status(413).json({ success: false, error: 'Image is too large.' });
+        }
+
+        const settings = await getUserSettings(req.user.id);
+        if (!settings.mode) {
+            return res.status(400).json({ success: false, error: 'Open Settings and choose how to use AI first.' });
+        }
+        if (!settings.geminiKey) {
+            return res.status(400).json({ success: false, error: 'Reading images needs a Gemini key. Add one in Settings, or switch to Shared AI.' });
+        }
+        if (settings.mode === 'shared') {
+            const q = await getSharedQuota(req.user.id);
+            if (q.used >= q.budget) {
+                return res.status(429).json({ success: false, error: 'You have used your share of the free AI for now.' });
+            }
+        }
+
+        const text = await describeImage(settings.geminiKey, data, mime);
+        if (!text) {
+            return res.status(502).json({ success: false, error: 'The image could not be read.' });
+        }
+        if (settings.mode === 'shared') {
+            await supabase.from('usage_log').insert({ user_id: req.user.id, tokens: approxTokens(text) + 500 });
+        }
+        res.json({ success: true, text });
+    } catch (err) {
+        const message = err.response?.data?.error?.message || err.message;
+        console.error('Image read failed:', message);
+        res.status(500).json({ success: false, error: 'Could not read the image. ' + String(message).slice(0, 150) });
     }
 });
 

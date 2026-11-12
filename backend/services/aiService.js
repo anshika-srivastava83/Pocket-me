@@ -128,4 +128,24 @@ async function callAI(history, system, modelId, autoFallback = false, signal, ke
     throw new Error(errors.join(' | '));
 }
 
-module.exports = { callAI, getModels };
+// Turns an image into compact Markdown text (Gemini only).
+async function describeImage(apiKey, base64, mime) {
+    const model = process.env.GEMINI_MODEL || process.env.GEMINI_FALLBACK_MODEL;
+    const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+            contents: [{
+                role: 'user',
+                parts: [
+                    { text: 'Convert this image to compact Markdown for another AI to read. Transcribe all visible text exactly. Use Markdown tables for tables or charts. Otherwise describe only what matters in under 150 words. No preamble.' },
+                    { inlineData: { mimeType: mime, data: base64 } }
+                ]
+            }]
+        },
+        { headers: { 'x-goog-api-key': apiKey }, timeout: 60000 }
+    );
+    const parts = response.data.candidates[0].content.parts;
+    return parts.map((p) => p.text).filter(Boolean).join('').trim();
+}
+
+module.exports = { callAI, getModels, describeImage };
