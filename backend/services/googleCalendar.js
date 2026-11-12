@@ -27,7 +27,7 @@ async function calendarRequest(method, path, data) {
 }
 
 // Adds an event to your Google Calendar and returns its Google event id.
-async function createCalendarEvent(title, remindAt, startDate) {
+async function createCalendarEvent(title, startDate, calendarId) {
     const end = new Date(startDate.getTime() + 15 * 60 * 1000);
     const response = await calendarRequest('post', '', {
         summary: title,

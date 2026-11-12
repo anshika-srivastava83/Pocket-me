@@ -18,7 +18,7 @@ async function callGemini(apiKey, model, history, system, signal) {
     const response = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         body,
-        { headers: { 'x-goog-api-key': apiKey }, timeout: 30000, signal }
+        { headers: { 'x-goog-api-key': apiKey }, timeout: 60000, signal }
     );
     const parts = response.data.candidates[0].content.parts;
     return parts.map((p) => p.text).filter(Boolean).join('');

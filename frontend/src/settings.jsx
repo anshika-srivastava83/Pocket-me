@@ -35,7 +35,7 @@ function Settings({ token, email, onClose }) {
   }, []);
 
   const mode = status?.mode;
-  const currentView = view || (mode ? 'mode' : 'choose');
+  const currentView = view || 'choose';
   const q = status?.quota;
 
   const send = async (body, okMessage) => {
