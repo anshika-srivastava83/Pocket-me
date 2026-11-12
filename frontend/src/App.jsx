@@ -139,7 +139,7 @@ function App() {
     fetch('/api/settings', { headers })
       .then((res) => res.json())
       .then((s) => {
-        if (!s.hasGemini && !s.hasGroq) setShowSettings(true);
+        if (!s.mode) setShowSettings(true);
       })
       .catch(() => {});
 

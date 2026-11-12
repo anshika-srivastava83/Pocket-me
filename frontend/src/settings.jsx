@@ -32,7 +32,7 @@ function Settings({ token, email, onClose }) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-  const activeTab = tab || 'guide';
+  const link = 'underline';
 
   useEffect(() => {
     fetch('/api/settings', { headers })
@@ -40,7 +40,7 @@ function Settings({ token, email, onClose }) {
       .then((s) => {
         setStatus(s);
         setCalendarId(s.calendarId || '');
-        setTab((t) => t || (s.hasGemini || s.hasGroq ? 'mine' : 'guide'));
+        setTab((t) => t || (s.mode === 'own' && !s.hasGemini && !s.hasGroq ? 'guide' : 'mine'));
       })
       .catch(() => setMessage('Could not load settings.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,7 +54,7 @@ function Settings({ token, email, onClose }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMessage(data.error || 'Could not save.');
-        return;
+        return false;
       }
       setStatus(data);
       setCalendarId(data.calendarId || '');
@@ -62,11 +62,19 @@ function Settings({ token, email, onClose }) {
       setGroqKey('');
       setTestResult(null);
       setMessage(okMessage);
+      return true;
     } catch {
       setMessage('Could not reach the server.');
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const chooseMode = async (m) => {
+    if (status?.mode === m) return;
+    const ok = await send({ mode: m }, m === 'shared' ? 'Now using the shared AI.' : 'Now using your own keys.');
+    if (ok) setTab(m === 'own' && !(status?.hasGemini || status?.hasGroq) ? 'guide' : 'mine');
   };
 
   const save = (e) => {
@@ -103,15 +111,87 @@ function Settings({ token, email, onClose }) {
     }
   };
 
-  const hasKey = !!(status?.hasGemini || status?.hasGroq);
-  const link = 'underline';
+  const activeTab = tab || 'mine';
+  const needsChoice = status && !status.mode;
+  const q = status?.quota;
+
+  const header = (
+    <div className="flex items-center justify-between">
+      <h2 className="font-mono font-bold uppercase tracking-wider">Settings</h2>
+      <button type="button" onClick={onClose} className="nb-btn">Close</button>
+    </div>
+  );
+
+  if (needsChoice) {
+    return (
+      <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
+        <div className="nb-panel w-full max-w-md space-y-4 bg-surface p-5 fade-in">
+          {header}
+          <p className="text-sm">How should Pocket Me use AI for you? You can switch any time in Settings.</p>
+
+          <button
+            type="button"
+            onClick={() => chooseMode('shared')}
+            disabled={saving || !status.sharedAvailable}
+            className="nb-card w-full space-y-1 p-4 text-left"
+          >
+            <div className="font-bold">Share the common AI</div>
+            <div className="text-sm">
+              No setup, start right away. A daily allowance is split between everyone who shares, so your share gets smaller as more people join.
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => chooseMode('own')}
+            disabled={saving}
+            className="nb-card w-full space-y-1 p-4 text-left"
+          >
+            <div className="font-bold">Use my own keys</div>
+            <div className="text-sm">
+              One-time setup of about 5 minutes with your own free Gemini and Groq accounts. No shared limit.
+            </div>
+          </button>
+
+          {message && <p className="text-sm font-bold text-accent">{message}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
       <div className="nb-panel w-full max-w-md space-y-5 bg-surface p-5 fade-in">
-        <div className="flex items-center justify-between">
-          <h2 className="font-mono font-bold uppercase tracking-wider">Settings</h2>
-          <button type="button" onClick={onClose} className="nb-btn">Close</button>
+        {header}
+
+        <div className="space-y-2">
+          <p className="nb-label">AI source</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => chooseMode('shared')}
+              disabled={saving || !status?.sharedAvailable}
+              className={`nb-btn flex-1 ${status?.mode === 'shared' ? 'nb-btn-accent' : ''}`}
+            >
+              Shared AI
+            </button>
+            <button
+              type="button"
+              onClick={() => chooseMode('own')}
+              disabled={saving}
+              className={`nb-btn flex-1 ${status?.mode === 'own' ? 'nb-btn-accent' : ''}`}
+            >
+              My own keys
+            </button>
+          </div>
+          {status?.mode === 'shared' && q && (
+            <p className="text-sm">
+              Shared AI: about {q.used} of {q.budget} tokens used in the last 24 hours. {q.sharers} {q.sharers === 1 ? 'person shares' : 'people share'} the daily pool, so more people means smaller shares. These are estimates. Switch to your own keys for no limit.
+            </p>
+          )}
+          {status?.mode === 'own' && !status.hasGemini && !status.hasGroq && (
+            <p className="text-sm font-bold text-accent">Add at least one key to start chatting. See the Setup guide.</p>
+          )}
         </div>
 
         <div className="flex gap-2">
@@ -131,11 +211,12 @@ function Settings({ token, email, onClose }) {
           </button>
         </div>
 
+        {message && <p className="text-sm font-bold text-accent">{message}</p>}
+
         {activeTab === 'guide' && (
           <div className="space-y-6">
             <p className="text-sm">
-              Pocket Me uses your own free accounts, so nothing is shared and there is no daily cap.
-              This is a one-time setup of about 5 minutes. After it, everything works on its own.
+              Steps 1 and 2 are only needed for your own keys. Step 3 (your calendar) is needed by everyone, because calendars are never shared. It is a one-time setup of about 5 minutes.
             </p>
 
             <Step n={1} done={!!status?.hasGemini} title="Get a free Gemini key">
@@ -143,7 +224,7 @@ function Settings({ token, email, onClose }) {
                 <li>
                   Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className={link}>aistudio.google.com/apikey</a> and sign in with Google.
                 </li>
-                <li>Click Create API key. If it asks for a project, pick any or create one.</li>
+                <li>Click Create API key. If it asks for a project, create a new one.</li>
                 <li>Copy the key. It starts with AIza.</li>
                 <li>Open the My keys tab and paste it under Gemini key.</li>
               </ol>
@@ -192,12 +273,9 @@ function Settings({ token, email, onClose }) {
         {activeTab === 'mine' && (
           <form onSubmit={save} className="space-y-5">
             {email && <p className="text-sm">Signed in as <b>{email}</b></p>}
-            {!hasKey && status && (
-              <p className="text-sm font-bold text-accent">Add at least one AI key to start chatting. See the Setup guide.</p>
-            )}
 
             <div className="space-y-2">
-              <p className="nb-label">Gemini key</p>
+              <p className="nb-label">Your Gemini key</p>
               {status?.hasGemini && (
                 <div className="flex items-center gap-2 text-sm">
                   <span>Saved: <code>{status.geminiHint}</code></span>
@@ -214,7 +292,7 @@ function Settings({ token, email, onClose }) {
             </div>
 
             <div className="space-y-2">
-              <p className="nb-label">Groq key</p>
+              <p className="nb-label">Your Groq key</p>
               {status?.hasGroq && (
                 <div className="flex items-center gap-2 text-sm">
                   <span>Saved: <code>{status.groqHint}</code></span>
@@ -231,7 +309,7 @@ function Settings({ token, email, onClose }) {
             </div>
 
             <div className="space-y-2">
-              <p className="nb-label">Calendar ID</p>
+              <p className="nb-label">Your Calendar ID</p>
               <input
                 type="text"
                 value={calendarId}
@@ -247,8 +325,6 @@ function Settings({ token, email, onClose }) {
                 )}
               </div>
             </div>
-
-            {message && <p className="text-sm font-bold text-accent">{message}</p>}
 
             <div className="flex gap-2">
               <button type="submit" disabled={saving} className="nb-btn nb-btn-accent flex-1">

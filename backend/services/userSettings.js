@@ -8,13 +8,26 @@ function safeDecrypt(value) {
 async function getUserSettings(userId) {
     const { data } = await supabase
         .from('user_settings')
-        .select('gemini_key, groq_key, calendar_id')
+        .select('gemini_key, groq_key, calendar_id, mode')
         .eq('user_id', userId)
         .maybeSingle();
+
+    const ownGeminiKey = safeDecrypt(data?.gemini_key);
+    const ownGroqKey = safeDecrypt(data?.groq_key);
+
+    // Users who saved keys before modes existed count as "own".
+    const mode = data?.mode || (ownGeminiKey || ownGroqKey ? 'own' : null);
+    const useShared = mode === 'shared';
+
     return {
-        geminiKey: safeDecrypt(data?.gemini_key),
-        groqKey: safeDecrypt(data?.groq_key),
-        calendarId: data?.calendar_id || ''
+        mode,
+        geminiKey: useShared ? process.env.GEMINI_API_KEY || '' : ownGeminiKey,
+        groqKey: useShared ? process.env.GROQ_API_KEY || '' : ownGroqKey,
+        calendarId: data?.calendar_id || '',
+        ownGeminiKey,
+        ownGroqKey,
+        hasOwnGemini: !!ownGeminiKey,
+        hasOwnGroq: !!ownGroqKey
     };
 }
 

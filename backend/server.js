@@ -21,6 +21,29 @@ const SUMMARY_EVERY = 2;
 // How many other chats in the same space are used as background.
 const SUMMARY_MAX_OTHER_CHATS = 5;
 
+// Shared AI: one daily token pool, split between everyone who chose "shared".
+const SHARED_DAILY_TOKENS = Number(process.env.SHARED_DAILY_TOKENS) || 150000;
+const MIN_USER_TOKENS = 15000;
+const approxTokens = (text) => Math.ceil((text || '').length / 4);
+
+async function getSharedQuota(userId) {
+    const { count } = await supabase
+        .from('user_settings')
+        .select('*', { count: 'exact', head: true })
+        .eq('mode', 'shared');
+    const sharers = Math.max(1, count || 1);
+    const budget = Math.max(MIN_USER_TOKENS, Math.floor(SHARED_DAILY_TOKENS / sharers));
+
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const { data } = await supabase
+        .from('usage_log')
+        .select('tokens')
+        .eq('user_id', userId)
+        .gte('created_at', since);
+    const used = (data || []).reduce((sum, r) => sum + r.tokens, 0);
+    return { budget, used, sharers };
+}
+
 /*const DEFAULT_SPACES = [
     { name: 'Coding', instructions: 'You are my coding mentor. I am a beginner learning DSA with Java and web development. Explain simply, give code in small parts, and explain what each part does.' },
     { name: 'Mehfil', instructions: 'You are a mentor and partner for my open mic and event business called Mehfil. Help with planning, promotion and ideas.' },
@@ -512,8 +535,25 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         // Ask the AI. If it fails, the user's message is still saved.
         const settings = await getUserSettings(req.user.id);
         const keys = { gemini: settings.geminiKey, groq: settings.groqKey };
+                if (!settings.mode) {
+            return res.status(400).json({ success: false, chatId: activeChatId, error: 'Open Settings and choose how to use AI first.' });
+        }
         if (!keys.gemini && !keys.groq) {
-            return res.status(400).json({ success: false, chatId: activeChatId, error: 'Add your Gemini or Groq API key in Settings first.' });
+            return res.status(400).json({
+                success: false,
+                chatId: activeChatId,
+                error: settings.mode === 'own' ? 'Add your Gemini or Groq key in Settings first.' : 'Shared AI is not set up on the server.'
+            });
+        }
+        if (settings.mode === 'shared') {
+            const q = await getSharedQuota(req.user.id);
+            if (q.used >= q.budget) {
+                return res.status(429).json({
+                    success: false,
+                    chatId: activeChatId,
+                    error: `You have used your share of the free AI (${q.used} of ${q.budget} tokens in the last 24 hours). It frees up gradually. Switch to your own keys in Settings to remove the limit.`
+                });
+            }
         }
         let result;
         try {
@@ -531,6 +571,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         await supabase
             .from('messages')
             .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider });
+
+                if (settings.mode === 'shared') {
+            const tokens =
+                approxTokens(system) +
+                history.reduce((n, m) => n + approxTokens(m.content), 0) +
+                approxTokens(result.text);
+            await supabase.from('usage_log').insert({ user_id: req.user.id, tokens });
+        }
 
         // Update the summary in the background. The reply does not wait for it.
         const summaryJob = updateSummary(activeChatId, req.user.id, summarizedCount, chatSummary, keys).catch((err) =>
@@ -561,13 +609,17 @@ const hint = (k) => (k ? `${k.slice(0, 4)}...${k.slice(-4)}` : '');
 
 async function settingsStatus(userId) {
     const s = await getUserSettings(userId);
+    const quota = s.mode === 'shared' ? await getSharedQuota(userId) : null;
     return {
-        hasGemini: !!s.geminiKey,
-        hasGroq: !!s.groqKey,
-        geminiHint: hint(s.geminiKey),
-        groqHint: hint(s.groqKey),
+        mode: s.mode,
+        hasGemini: s.hasOwnGemini,
+        hasGroq: s.hasOwnGroq,
+        geminiHint: hint(s.ownGeminiKey),
+        groqHint: hint(s.ownGroqKey),
         calendarId: s.calendarId,
-        serviceEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || ''
+        serviceEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
+        sharedAvailable: !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY),
+        quota
     };
 }
 
@@ -601,6 +653,16 @@ app.put('/api/settings', requireAuth, async (req, res) => {
                 return res.status(400).json({ success: false, error: 'That does not look like a Groq key (starts with gsk_).' });
             }
             row.groq_key = encrypt(groqKey);
+        }
+
+        if (req.body.mode !== undefined) {
+            if (!['own', 'shared'].includes(req.body.mode)) {
+                return res.status(400).json({ success: false, error: 'Invalid mode.' });
+            }
+            if (req.body.mode === 'shared' && !(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY)) {
+                return res.status(400).json({ success: false, error: 'Shared AI is not available right now.' });
+            }
+            row.mode = req.body.mode;
         }
 
         if (req.body.calendarId !== undefined) {

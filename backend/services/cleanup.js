@@ -5,6 +5,10 @@ const { getUserSettings } = require('./userSettings');
 const KEEP_DAYS = 60;
 
 async function cleanupOldMessages() {
+    await supabase
+        .from('usage_log')
+        .delete()
+        .lt('created_at', new Date(Date.now() - 7 * 86400000).toISOString());
     const cutoff = new Date(Date.now() - KEEP_DAYS * 86400000).toISOString();
     const { data: old } = await supabase
         .from('messages')
