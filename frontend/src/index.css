@@ -335,7 +335,7 @@ input[type="checkbox"] { accent-color: #111111; width: 1rem; height: 1rem; }
   animation: pm-hop 0.32s ease-in-out infinite alternate;
 }
 .pm-work { flex-shrink: 0; line-height: 0; }
-.pm-work-img { display: block; height: 56px; width: auto; }
+.pm-work-img { display: block; height: 35px; width: auto; }
 .pm-thinking .nb-label { animation: pm-fade 400ms ease both; }
 @keyframes pm-walk {
   from { transform: translateX(0); }
