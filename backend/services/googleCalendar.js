@@ -14,22 +14,22 @@ function getAuth() {
     return auth;
 }
 
-async function calendarRequest(method, path, data) {
+async function calendarRequest(method, calendarId, path, data) {
+    if (!calendarId) throw new Error('No Calendar ID set.');
     const { token } = await getAuth().getAccessToken();
-    const calendarId = encodeURIComponent(calendarId);
     return axios({
         method,
-        url: `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events${path}`,
+        url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events${path}`,
         data,
         headers: { Authorization: `Bearer ${token}` },
         timeout: 15000
     });
 }
 
-// Adds an event to your Google Calendar and returns its Google event id.
+// Adds an event to the given Google Calendar and returns its Google event id.
 async function createCalendarEvent(title, startDate, calendarId) {
     const end = new Date(startDate.getTime() + 15 * 60 * 1000);
-    const response = await calendarRequest('post', '', {
+    const response = await calendarRequest('post', calendarId, '', {
         summary: title,
         start: { dateTime: startDate.toISOString() },
         end: { dateTime: end.toISOString() },
@@ -40,7 +40,7 @@ async function createCalendarEvent(title, startDate, calendarId) {
 
 async function deleteCalendarEvent(eventId, calendarId) {
     try {
-        await calendarRequest('delete', `/${encodeURIComponent(eventId)}`);
+        await calendarRequest('delete', calendarId, `/${encodeURIComponent(eventId)}`);
     } catch (err) {
         // Already gone from Google Calendar: nothing left to remove.
         if ([404, 410].includes(err.response?.status)) return;
