@@ -11,7 +11,7 @@ import Thinking from './thinking';
 import Settings from './settings';
 import { fileToAttachment, buildMessage, UserMessage } from './attachments';
 import { CardsSkeleton, ChatSkeleton, PageLoader } from './skeleton';
-
+ 
 const markdownComponents = {
   p: ({ children }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
   h1: ({ children }) => <h3 className="font-bold text-lg mb-2">{children}</h3>,
@@ -32,7 +32,7 @@ const markdownComponents = {
   th: ({ children }) => <th className="border-2 border-ink px-2 py-1 text-left">{children}</th>,
   td: ({ children }) => <td className="border-2 border-ink px-2 py-1">{children}</td>
 };
-
+ 
 const iconProps = {
   width: 18,
   height: 18,
@@ -44,7 +44,7 @@ const iconProps = {
   strokeLinejoin: 'round',
   'aria-hidden': true
 };
-
+ 
 const CopyIcon = () => (
   <svg {...iconProps}>
     <rect x="9" y="9" width="11" height="11" rx="2" />
@@ -68,12 +68,12 @@ const RetryIcon = () => (
     <path d="M3 3v5h5" />
   </svg>
 );
-
+ 
 function App() {
   // Login state
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-
+ 
   // Spaces state
   const [spaces, setSpaces] = useState([]);
   const [activeSpaceId, setActiveSpaceId] = useState('');
@@ -90,14 +90,14 @@ function App() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [chatError, setChatError] = useState('');
-    const [copiedIndex, setCopiedIndex] = useState(null);
+  const [copiedIndex, setCopiedIndex] = useState(null);
   const [notice, setNotice] = useState('');
   const [editingIndex, setEditingIndex] = useState(null);
   const [editText, setEditText] = useState('');
-
+ 
   const showNotice = (text) => {
     setNotice(text);
-    setTimeout(() => setNotice(''), 4000);
+    setTimeout(() => setNotice(''), 10000);
   };
   const [showSettings, setShowSettings] = useState(false);
   const [aiStatus, setAiStatus] = useState(null);
@@ -116,16 +116,16 @@ function App() {
   const abortRef = useRef(null);
   const inputRef = useRef(null);
   const bottomRef = useRef(null);
-
+ 
   // Model picker state
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [autoFallback, setAutoFallback] = useState(true);
-
+ 
   const token = session?.access_token;
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
   const activeSpace = spaces.find((s) => s.id === activeSpaceId);
-
+ 
   // Scroll down when you send a message or the AI starts thinking.
   // A finished reply is not scrolled to its end, so you can read it from the top.
   useEffect(() => {
@@ -134,12 +134,12 @@ function App() {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [messages, loading]);
-
+ 
   // Jump straight to the latest message when a chat finishes opening.
   useEffect(() => {
     if (!chatLoading) bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
   }, [chatLoading]);
-
+ 
   // Check for an existing login when the page opens, and listen for login or logout.
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -151,7 +151,7 @@ function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
-
+ 
   // Once logged in, load the model list and the spaces.
   useEffect(() => {
     if (!token) {
@@ -165,7 +165,7 @@ function App() {
       return;
     }
     const headers = { Authorization: `Bearer ${token}` };
-
+ 
     fetch('/api/settings', { headers })
       .then((res) => res.json())
       .then((s) => {
@@ -176,7 +176,7 @@ function App() {
         }
       })
       .catch(() => {});
-
+ 
     fetch('/api/models', { headers })
       .then((res) => res.json())
       .then((list) => {
@@ -186,7 +186,7 @@ function App() {
         }
       })
       .catch(() => {});
-
+ 
     fetch('/api/spaces', { headers })
       .then((res) => res.json())
       .then((list) => {
@@ -198,16 +198,16 @@ function App() {
       })
       .catch(() => {});
   }, [token]);
-
+ 
   // When you open a different space, load its chats and show the newest one.
   useEffect(() => {
     if (!token || !activeSpaceId) return;
     let cancelled = false;
-
+ 
     setChatList([]);
     setMessages([]);
     setActiveChatId(null);
-
+ 
     fetch(`/api/spaces/${activeSpaceId}/chats`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => res.json())
       .then((list) => {
@@ -216,11 +216,11 @@ function App() {
         if (list.length > 0) openChat(list[0].id);
       })
       .catch(() => {});
-
+ 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, activeSpaceId]);
-
+ 
   const openChat = async (chatId) => {
     setActiveChatId(chatId);
     setMessages([]);
@@ -244,11 +244,11 @@ function App() {
     setChatError('');
     setRenamingId(current.id);
   };
-
+ 
   const saveRename = async (e) => {
     e.preventDefault();
     if (!renameValue.trim() || !renamingId) return;
-
+ 
     try {
       const res = await fetch(`/api/chats/${renamingId}`, {
         method: 'PATCH',
@@ -266,7 +266,7 @@ function App() {
       setChatError('Could not reach the server.');
     }
   };
-
+ 
   const togglePin = async (chatId) => {
     const current = chatList.find((c) => c.id === chatId);
     if (!current) return;
@@ -283,17 +283,17 @@ function App() {
       setChatList((prev) => prev.map((c) => (c.id === chatId ? { ...c, pinned: !pinned } : c)));
     }
   };
-
+ 
   const deleteChat = async (chatId) => {
     if (!window.confirm('Delete this chat? This cannot be undone.')) return;
-
+ 
     const res = await fetch(`/api/chats/${chatId}`, { method: 'DELETE', headers: authHeaders });
     if (res.ok) {
       setChatList((prev) => prev.filter((c) => c.id !== chatId));
       if (chatId === activeChatId) startNewChat();
     }
   };
-
+ 
   const copyText = async (text, index) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -303,18 +303,18 @@ function App() {
       // Clipboard access can fail on non-secure pages. Nothing to do.
     }
   };
-
+ 
   const startEdit = (index, text) => {
     if (loading) return;
     setEditingIndex(index);
     setEditText(text);
   };
-
+ 
   const cancelEdit = () => {
     setEditingIndex(null);
     setEditText('');
   };
-
+ 
   const saveEdit = () => {
     if (loading || editingIndex === null || !editText.trim()) return;
     const index = editingIndex;
@@ -324,17 +324,17 @@ function App() {
     cancelEdit();
     sendText(text, replaceId);
   };
-
+ 
   const startNewChat = () => {
     setActiveChatId(null);
     setMessages([]);
   };
-
+ 
   const createSpace = async (e) => {
     e.preventDefault();
     if (savingSpace) return;
     setFormError('');
-
+ 
     if (editingSpaceId) {
       const id = editingSpaceId;
       const previous = spaces;
@@ -356,7 +356,7 @@ function App() {
         });
       return;
     }
-
+ 
     setSavingSpace(true);
     try {
       const res = await fetch('/api/spaces', {
@@ -378,14 +378,15 @@ function App() {
       setSavingSpace(false);
     }
   };
-const closeSpaceForm = () => {
+ 
+  const closeSpaceForm = () => {
     setEditingSpaceId(null);
     setNewName('');
     setNewInstructions('');
     setFormError('');
     setShowForm(false);
   };
-
+ 
   const openEditSpace = () => {
     if (!activeSpace) return;
     setEditingSpaceId(activeSpace.id);
@@ -394,11 +395,11 @@ const closeSpaceForm = () => {
     setFormError('');
     setShowForm(true);
   };
-
+ 
   const deleteSpace = async () => {
     if (!editingSpaceId) return;
     if (!window.confirm('Delete this space and all its chats? This cannot be undone.')) return;
-
+ 
     const res = await fetch(`/api/spaces/${editingSpaceId}`, { method: 'DELETE', headers: authHeaders });
     if (!res.ok) {
       setFormError('Could not delete the space.');
@@ -410,8 +411,8 @@ const closeSpaceForm = () => {
     setActiveSpaceId('');
     closeSpaceForm();
   };
-
-    const submit = () => {
+ 
+  const submit = () => {
     if (loading || attaching) return;
     const full = buildMessage(input, attachments);
     if (!full.trim()) return;
@@ -419,12 +420,12 @@ const closeSpaceForm = () => {
     setAttachError('');
     sendText(full);
   };
-
+ 
   const sendMessage = (e) => {
     e.preventDefault();
     submit();
   };
-
+ 
   const onPickFiles = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -446,12 +447,12 @@ const closeSpaceForm = () => {
       setAttaching(false);
     }
   };
-
+ 
   const removeAttachment = (id) => {
     setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, leaving: true } : a)));
     setTimeout(() => setAttachments((prev) => prev.filter((a) => a.id !== id)), 180);
   };
-
+ 
   const changeMode = async (m) => {
     if (!aiStatus || m === aiStatus.mode) return;
     if (m === 'own' && !aiStatus.hasGemini && !aiStatus.hasGroq) {
@@ -478,19 +479,19 @@ const closeSpaceForm = () => {
       showNotice('Could not reach the server. Try again.');
     }
   };
-
+ 
   const sendText = async (text, replaceId) => {
     if (!text.trim() || !activeSpaceId || loading) return;
-
+ 
     const userMessage = text;
     setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
     setInput('');
     setLoading(true);
     const controller = new AbortController();
     abortRef.current = controller;
-
+ 
     try {
-        const res = await fetch('/api/chat', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: authHeaders,
         signal: controller.signal,
@@ -504,7 +505,8 @@ const closeSpaceForm = () => {
         })
       });
       const data = await res.json();
-
+ 
+      // Warn when the shared AI allowance is nearly used up.
       if (data.quota && data.quota.budget > 0) {
         const pct = data.quota.used / data.quota.budget;
         if (pct >= 0.8) {
@@ -515,14 +517,14 @@ const closeSpaceForm = () => {
           );
         }
       }
-
+ 
       // A new chat was created on the server: remember it and add it to the list.
       if (data.chatId && !activeChatId) {
         setActiveChatId(data.chatId);
         setChatList((prev) => [{ id: data.chatId, title: userMessage.slice(0, 50) }, ...prev]);
       }
-
-            if (data.success) {
+ 
+      if (data.success) {
         setMessages((prev) => {
           const next = [...prev];
           for (let i = next.length - 1; i >= 0; i--) {
@@ -536,7 +538,7 @@ const closeSpaceForm = () => {
       } else {
         setMessages((prev) => [...prev, { sender: 'ai', text: `Error: ${data.error}` }]);
       }
-      } catch (err) {
+    } catch (err) {
       if (err.name === 'AbortError') {
         setMessages((prev) => [...prev, { sender: 'ai', text: 'Stopped.' }]);
       } else {
@@ -547,8 +549,8 @@ const closeSpaceForm = () => {
       setLoading(false);
     }
   };
-
-    // Back button support: every screen change is a browser history entry.
+ 
+  // Back button support: every screen change is a browser history entry.
   useEffect(() => {
     window.history.replaceState({ spaceId: '' }, '');
     const onPop = (e) => {
@@ -561,7 +563,7 @@ const closeSpaceForm = () => {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-
+ 
   // Keep the home-page toggle in sync after Settings closes.
   useEffect(() => {
     if (showSettings || !token) return;
@@ -572,7 +574,7 @@ const closeSpaceForm = () => {
       })
       .catch(() => {});
   }, [showSettings, token]);
-
+ 
   const openSpace = (id) => {
     if (id === activeSpaceId) {
       if (drawerOpen) window.history.back();
@@ -583,21 +585,21 @@ const closeSpaceForm = () => {
     setActiveSpaceId(id);
     setDrawerOpen(false);
   };
-
+ 
   const toggleChats = () => {
     if (window.matchMedia('(min-width: 768px)').matches) setChatsCollapsed((c) => !c);
     else setChatsOpen((o) => !o);
   };
-
+ 
   const openDrawer = () => {
     window.history.pushState({ spaceId: activeSpaceId, drawer: true }, '');
     setDrawerOpen(true);
   };
-
+ 
   const closeDrawer = () => {
     if (drawerOpen) window.history.back();
   };
-
+ 
   const openSettings = () => {
     if (drawerOpen) {
       window.history.replaceState({ spaceId: activeSpaceId, settings: true }, '');
@@ -607,11 +609,11 @@ const closeSpaceForm = () => {
     }
     setShowSettings(true);
   };
-
+ 
   const closeSettings = () => {
     if (showSettings) window.history.back();
   };
-
+ 
   // These checks come after all the hooks above, which React requires.
   if (authLoading) {
     return <PageLoader />;
@@ -619,9 +621,9 @@ const closeSpaceForm = () => {
   if (!session) {
     return <Login />;
   }
-
-    const inReminders = activeSpace?.name === 'Reminders';
-
+ 
+  const inReminders = activeSpace?.name === 'Reminders';
+ 
   return (
     <div className="flex flex-col h-screen bg-surface text-ink">
       <Drawer
@@ -640,7 +642,7 @@ const closeSpaceForm = () => {
         }}
         onSettings={openSettings}
       />
-
+ 
       <header className="relative z-10 px-4 py-3 bg-surface border-b-2 border-ink flex items-center gap-3">
         <button onClick={openDrawer} className="nb-btn nb-icon-btn" aria-label="Open menu">
           <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true">
@@ -652,7 +654,7 @@ const closeSpaceForm = () => {
         <button onClick={() => openSpace('')} className="font-mono font-bold uppercase tracking-wider whitespace-nowrap">
           Pocket Me
         </button>
-
+ 
         {activeSpace && (
           <div className="ml-auto flex items-center gap-2 min-w-0">
             {!inReminders && (
@@ -678,11 +680,11 @@ const closeSpaceForm = () => {
             <span className="nb-label truncate max-w-[40vw]">{activeSpace.name}</span>
           </div>
         )}
-  <div className={activeSpace ? '' : 'ml-auto'}>
+        <div className={activeSpace ? '' : 'ml-auto'}>
           <ModeToggle mode={aiStatus?.mode} onChange={changeMode} />
         </div>
       </header>
-
+ 
       {showSettings && <Settings token={token} email={session?.user?.email} onClose={closeSettings} />}
       {showForm && (
         <form onSubmit={createSpace} className="relative z-10 p-4 bg-surface border-b-2 border-ink space-y-3">
@@ -718,9 +720,18 @@ const closeSpaceForm = () => {
           </div>
         </form>
       )}
-
-      {notice && <div className="pm-toast" role="alert">{notice}</div>}
-
+ 
+      {notice && (
+        <div
+          className="pm-toast"
+          role="alert"
+          onClick={() => setNotice('')}
+          style={{ cursor: 'pointer' }}
+        >
+          {notice}
+        </div>
+      )}
+ 
       {!activeSpaceId ? (
         spacesLoaded ? <Landing spaces={spaces} loaded={spacesLoaded} onOpen={openSpace} mode={aiStatus?.mode} onModeChange={changeMode} /> : <CardsSkeleton />
       ) : (
@@ -758,193 +769,197 @@ const closeSpaceForm = () => {
               />
             </>
           )}
-
+ 
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
             {inReminders && <Reminders token={token} />}
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {chatLoading && <ChatSkeleton />}
-              {!chatLoading && messages.length === 0 && activeSpace && !inReminders && (
-                <div className="nb-label">Start a conversation in {activeSpace.name}</div>
-              )}
-              {messages.map((msg, index) => (
-                <div key={index} className={`fade-in flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[85%] md:max-w-2xl ${
-                      msg.sender === 'user' ? 'nb-msg-user whitespace-pre-wrap' : 'nb-msg-ai'
-                    }`}
-                  >
-                    {msg.sender === 'user' && editingIndex === index ? (
-                      <div className="space-y-2 w-[70vw] max-w-full">
-                        <textarea
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                              e.preventDefault();
-                              saveEdit();
-                            }
-                            if (e.key === 'Escape') cancelEdit();
-                          }}
-                          autoFocus
-                          rows={3}
-                          className="nb-input"
-                        />
-                        <div className="flex gap-2">
-                          <button type="button" onClick={saveEdit} className="nb-btn nb-btn-accent">Send</button>
-                          <button type="button" onClick={cancelEdit} className="nb-btn">Cancel</button>
+ 
+            {!inReminders && (
+              <>
+                <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                  {chatLoading && <ChatSkeleton />}
+                  {!chatLoading && messages.length === 0 && activeSpace && (
+                    <div className="nb-label">Start a conversation in {activeSpace.name}</div>
+                  )}
+                  {messages.map((msg, index) => (
+                    <div key={index} className={`fade-in flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-[85%] md:max-w-2xl ${
+                          msg.sender === 'user' ? 'nb-msg-user whitespace-pre-wrap' : 'nb-msg-ai'
+                        }`}
+                      >
+                        {msg.sender === 'user' && editingIndex === index ? (
+                          <div className="space-y-2 w-[70vw] max-w-full">
+                            <textarea
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                                  e.preventDefault();
+                                  saveEdit();
+                                }
+                                if (e.key === 'Escape') cancelEdit();
+                              }}
+                              autoFocus
+                              rows={3}
+                              className="nb-input"
+                            />
+                            <div className="flex gap-2">
+                              <button type="button" onClick={saveEdit} className="nb-btn nb-btn-accent">Send</button>
+                              <button type="button" onClick={cancelEdit} className="nb-btn">Cancel</button>
+                            </div>
+                          </div>
+                        ) : msg.sender === 'user' ? (
+                          <UserMessage text={msg.text} />
+                        ) : (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                            {msg.text}
+                          </ReactMarkdown>
+                        )}
+                        {msg.provider && <div className="mt-2 nb-label">via {msg.provider}</div>}
+                        <div className="mt-2 flex gap-1 -ml-1">
+                          <button type="button" onClick={() => copyText(msg.text, index)} className="nb-msg-action" aria-label="Copy" title="Copy">
+                            {copiedIndex === index ? <CheckIcon /> : <CopyIcon />}
+                          </button>
+                          {msg.sender === 'user' && (
+                            <>
+                              <button type="button" onClick={() => startEdit(index, msg.text)} className="nb-msg-action" aria-label="Edit" title="Edit">
+                                <EditIcon />
+                              </button>
+                              <button type="button" onClick={() => sendText(msg.text)} disabled={loading} className="nb-msg-action" aria-label="Resend" title="Resend">
+                                <RetryIcon />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
-                    ) : msg.sender === 'user' ? (
-                      <UserMessage text={msg.text} />
-                    ) : (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                        {msg.text}
-                      </ReactMarkdown>
-                    )}
-                    {msg.provider && <div className="mt-2 nb-label">via {msg.provider}</div>}
-                    <div className="mt-2 flex gap-1 -ml-1">
-                      <button type="button" onClick={() => copyText(msg.text, index)} className="nb-msg-action" aria-label="Copy" title="Copy">
-                        {copiedIndex === index ? <CheckIcon /> : <CopyIcon />}
-                      </button>
-                      {msg.sender === 'user' && (
-                        <>
-                          <button type="button" onClick={() => startEdit(index, msg.text)} className="nb-msg-action" aria-label="Edit" title="Edit">
-                            <EditIcon />
-                          </button>
-                          <button type="button" onClick={() => sendText(msg.text)} disabled={loading} className="nb-msg-action" aria-label="Resend" title="Resend">
-                            <RetryIcon />
-                          </button>
-                        </>
-                      )}
                     </div>
-                  </div>
+                  ))}
+                  {loading && <Thinking />}
+                  <div ref={bottomRef} />
                 </div>
-              ))}
-              {loading && <Thinking />}
-              <div ref={bottomRef} />
-            </div>
-
-    <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
-              <input
-                ref={fileRef}
-                type="file"
-                multiple
-                hidden
-                accept="image/*,.pdf,.docx,.txt,.md,.markdown,.csv,.tsv,.json,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.xml,.yml,.yaml,.sql,.log,.sh"
-                onChange={onPickFiles}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={attaching}
-                className="nb-btn nb-plus mb-4"
-                aria-label="Attach files"
-                title="Attach files"
-              >
-                +
-              </button>
-              <div className="relative flex-1">
-                <div className={`nb-attach-wrap ${attachments.length > 0 || attaching || attachError ? 'nb-attach-open' : ''}`}>
-                  <div className="nb-attach-inner">
-                    <div className="pb-2 flex flex-wrap items-center gap-2 text-sm">
-                      {attachments.map((a) => (
-                        <span key={a.id} className={`nb-file-chip nb-label ${a.leaving ? 'nb-file-chip-out' : ''}`}>
-                          <span className="truncate max-w-[40vw]">{a.name}</span>
-                          <button
-                            type="button"
-                            className="nb-file-x"
-                            onClick={() => removeAttachment(a.id)}
-                            aria-label={`Remove ${a.name}`}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                      {attaching && <span className="nb-label">Reading file...</span>}
-                      {attachError && <span className="font-bold text-accent">{attachError}</span>}
-                    </div>
-                  </div>
-                </div>
-                <textarea
-                  ref={inputRef}
-                  rows={2}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Enter sends. Shift+Enter adds a new line.
-                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }}
-                  placeholder={activeSpace ? `Message in ${activeSpace.name}` : 'Type a message'}
-                  className="nb-input resize-none pr-11 block"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setModelMenuOpen((o) => !o)}
-                  className="nb-ghost absolute right-1.5 bottom-3"
-                  aria-label="Choose model"
-                  aria-expanded={modelMenuOpen}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-
-                {modelMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-20" onClick={() => setModelMenuOpen(false)} />
-                    <div className="nb-menu nb-menu-up" role="menu">
-                      <div className="nb-label px-3 pt-2 pb-1">Model</div>
-                      {models.map((m, i) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          role="menuitemradio"
-                          aria-checked={selectedModel === m.id || (!selectedModel && i === 0)}
-                          className="nb-menu-item"
-                          onClick={() => {
-                            setSelectedModel(m.id);
-                            setModelMenuOpen(false);
-                          }}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                      <div className="flex items-center justify-between nb-label px-3 py-2 mt-1 border-t-2 border-ink">
-                        <span>Auto fallback</span>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={autoFallback}
-                          aria-label="Auto fallback"
-                          onClick={() => setAutoFallback((v) => !v)}
-                          className="nb-switch"
-                        />
+ 
+                <form onSubmit={sendMessage} className="p-4 bg-surface border-t-2 border-ink flex gap-3 items-end">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    multiple
+                    hidden
+                    accept="image/*,.pdf,.docx,.txt,.md,.markdown,.csv,.tsv,.json,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.xml,.yml,.yaml,.sql,.log,.sh"
+                    onChange={onPickFiles}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={attaching}
+                    className="nb-btn nb-plus mb-4"
+                    aria-label="Attach files"
+                    title="Attach files"
+                  >
+                    +
+                  </button>
+                  <div className="relative flex-1">
+                    <div className={`nb-attach-wrap ${attachments.length > 0 || attaching || attachError ? 'nb-attach-open' : ''}`}>
+                      <div className="nb-attach-inner">
+                        <div className="pb-2 flex flex-wrap items-center gap-2 text-sm">
+                          {attachments.map((a) => (
+                            <span key={a.id} className={`nb-file-chip nb-label ${a.leaving ? 'nb-file-chip-out' : ''}`}>
+                              <span className="truncate max-w-[40vw]">{a.name}</span>
+                              <button
+                                type="button"
+                                className="nb-file-x"
+                                onClick={() => removeAttachment(a.id)}
+                                aria-label={`Remove ${a.name}`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                          {attaching && <span className="nb-label">Reading file...</span>}
+                          {attachError && <span className="font-bold text-accent">{attachError}</span>}
+                        </div>
                       </div>
                     </div>
-                  </>
-                )}
-              </div>
-
-              {loading ? (
-                <button type="button" onClick={() => abortRef.current?.abort()} className="nb-btn mb-4">
-                  Stop
-                </button>
-              ) : (
-                <button type="submit" className="nb-btn nb-btn-accent mb-4">
-                  Send
-                </button>
-              )}
-            </form>
+                    <textarea
+                      ref={inputRef}
+                      rows={2}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Enter sends. Shift+Enter adds a new line.
+                        if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          submit();
+                        }
+                      }}
+                      placeholder={activeSpace ? `Message in ${activeSpace.name}` : 'Type a message'}
+                      className="nb-input resize-none pr-11 block"
+                    />
+ 
+                    <button
+                      type="button"
+                      onClick={() => setModelMenuOpen((o) => !o)}
+                      className="nb-ghost absolute right-1.5 bottom-3"
+                      aria-label="Choose model"
+                      aria-expanded={modelMenuOpen}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+ 
+                    {modelMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-20" onClick={() => setModelMenuOpen(false)} />
+                        <div className="nb-menu nb-menu-up" role="menu">
+                          <div className="nb-label px-3 pt-2 pb-1">Model</div>
+                          {models.map((m, i) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={selectedModel === m.id || (!selectedModel && i === 0)}
+                              className="nb-menu-item"
+                              onClick={() => {
+                                setSelectedModel(m.id);
+                                setModelMenuOpen(false);
+                              }}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                          <div className="flex items-center justify-between nb-label px-3 py-2 mt-1 border-t-2 border-ink">
+                            <span>Auto fallback</span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={autoFallback}
+                              aria-label="Auto fallback"
+                              onClick={() => setAutoFallback((v) => !v)}
+                              className="nb-switch"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+ 
+                  {loading ? (
+                    <button type="button" onClick={() => abortRef.current?.abort()} className="nb-btn mb-4">
+                      Stop
+                    </button>
+                  ) : (
+                    <button type="submit" className="nb-btn nb-btn-accent mb-4">
+                      Send
+                    </button>
+                  )}
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
     </div>
   );
 }
-
+ 
 export default App;

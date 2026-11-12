@@ -298,6 +298,54 @@ app.post('/api/reminders', requireAuth, async (req, res) => {
     res.json({ ...data, synced: Boolean(eventId) });
 });
 
+app.patch('/api/reminders/:id', requireAuth, async (req, res) => {
+    const title = (req.body.title || '').trim();
+    const remindAt = new Date(String(req.body.remindAt));
+
+    if (!title || title.length > 200) {
+        return res.status(400).json({ success: false, error: 'Title is required and must be 200 characters or less.' });
+    }
+    if (Number.isNaN(remindAt.getTime())) {
+        return res.status(400).json({ success: false, error: 'A valid date and time is required.' });
+    }
+
+    const { data: existing } = await supabase
+        .from('reminders')
+        .select('google_event_id')
+        .eq('id', req.params.id)
+        .eq('user_id', req.user.id)
+        .maybeSingle();
+    if (!existing) {
+        return res.status(404).json({ success: false, error: 'Reminder not found.' });
+    }
+
+    const { calendarId } = await getUserSettings(req.user.id);
+    let eventId = existing.google_event_id || null;
+    if (calendarId) {
+        try {
+            const newId = await createCalendarEvent(title, remindAt, calendarId);
+            if (eventId) await deleteCalendarEvent(eventId, calendarId).catch(() => {});
+            eventId = newId;
+        } catch (err) {
+            console.error('Google Calendar update failed:', err.response?.data?.error?.message || err.message);
+            return res.status(502).json({ success: false, error: 'Could not update the reminder in Google Calendar.' });
+        }
+    }
+
+    const { data, error } = await supabase
+        .from('reminders')
+        .update({ title, remind_at: remindAt.toISOString(), google_event_id: eventId })
+        .eq('id', req.params.id)
+        .eq('user_id', req.user.id)
+        .select('id, title, remind_at')
+        .single();
+    if (error) {
+        console.error('Update reminder failed:', error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+    res.json({ ...data, synced: Boolean(eventId) });
+});
+
 app.delete('/api/reminders/:id', requireAuth, async (req, res) => {
     const { data: reminder } = await supabase
         .from('reminders')
