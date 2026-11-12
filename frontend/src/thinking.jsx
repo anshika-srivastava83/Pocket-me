@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import pikachu from './assets/pikachu.png';
+import pikachu from './assets/pikachu-working.webp';
 
 const PHRASES = [
   'Thinking',
@@ -19,12 +19,8 @@ export default function Thinking() {
 
   return (
     <div className="pm-thinking" role="status" aria-live="polite">
-      <div className="pm-track" aria-hidden="true">
-        <span className="pm-walker">
-          <span className="pm-flip">
-            <img src={pikachu} alt="" className="pm-pika" />
-          </span>
-        </span>
+      <div className="pm-work" aria-hidden="true">
+        <img src={pikachu} alt="" className="pm-work-img" />
       </div>
       <span key={i} className="nb-label">{PHRASES[i]}...</span>
     </div>
