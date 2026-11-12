@@ -205,6 +205,15 @@ function Settings({ token, email, onClose }) {
             </button>
 
             {message && <p className="text-sm font-bold text-accent">{message}</p>}
+
+            <div className="space-y-2 border-t-2 border-ink pt-4">
+              <p className="nb-label">Install on your phone</p>
+              <ol className="list-decimal space-y-1 pl-5 text-sm">
+                <li><b>Android (Chrome):</b> tap the three dots, then Install app (or Add to Home screen).</li>
+                <li><b>iPhone (Safari only):</b> tap the Share button, then Add to Home Screen, then Add.</li>
+              </ol>
+              <p className="text-sm">It then opens from your home screen like a normal app.</p>
+            </div>
           </div>
         )}
 

@@ -426,9 +426,20 @@ function App() {
     submit();
   };
  
-  const onPickFiles = async (e) => {
+  const onPickFiles = (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
+    addFiles(files);
+  };
+
+  const onPasteFiles = (e) => {
+    const files = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith('image/'));
+    if (!files.length) return;
+    e.preventDefault();
+    addFiles(files);
+  };
+
+  const addFiles = async (files) => {
     if (!files.length) return;
     setAttachError('');
     if (attachments.length + files.length > 3) {
@@ -506,6 +517,8 @@ function App() {
       });
       const data = await res.json();
  
+      if (res.status === 429 && data.error) showNotice(data.error);
+      
       // Warn when the shared AI allowance is nearly used up.
       if (data.quota && data.quota.budget > 0) {
         const pct = data.quota.used / data.quota.budget;
@@ -892,6 +905,7 @@ function App() {
                         }
                       }}
                       placeholder={activeSpace ? `Message in ${activeSpace.name}` : 'Type a message'}
+                      onPaste={onPasteFiles}
                       className="nb-input resize-none pr-11 block"
                     />
  

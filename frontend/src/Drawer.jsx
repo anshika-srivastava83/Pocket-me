@@ -1,19 +1,34 @@
 import React from 'react';
 
 function Drawer({ open, onClose, spaces, activeSpaceId, onSelect, onNew, onLogout, onSettings }) {
+  const reminders = spaces.find((s) => s.name === 'Reminders');
+  const others = spaces.filter((s) => s.name !== 'Reminders');
   return (
     <>
       <div onClick={onClose} aria-hidden="true" className={`nb-scrim ${open ? 'nb-scrim-open' : ''}`} />
       <aside className={`nb-drawer ${open ? 'nb-drawer-open' : ''}`} aria-label="Spaces" inert={!open}>
-        <div className="nb-drawer-head">
-          <span className="nb-label">Spaces</span>
+        {reminders && (
+          <div className="nb-drawer-head">
+            <button
+              type="button"
+              className="nb-reminders-link"
+              aria-current={reminders.id === activeSpaceId ? 'page' : undefined}
+              onClick={() => onSelect(reminders.id)}
+            >
+              Reminders
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between px-4 pt-4">
+          <span className="nb-spaces-title">Spaces</span>
           <button onClick={onNew} className="nb-btn nb-plus" aria-label="Add a new space">
             +
           </button>
         </div>
 
         <nav className="nb-drawer-nav">
-          {spaces.map((s) => (
+          {others.map((s) => (
             <button
               key={s.id}
               className="nb-row"
@@ -23,7 +38,7 @@ function Drawer({ open, onClose, spaces, activeSpaceId, onSelect, onNew, onLogou
               {s.name}
             </button>
           ))}
-          {spaces.length === 0 && <p className="nb-label px-2">No spaces yet. Tap + to add one.</p>}
+          {others.length === 0 && <p className="nb-label px-2">No spaces yet. Tap + to add one.</p>}
         </nav>
 
         <div className="flex items-center gap-2 p-3 border-t-2 border-ink">

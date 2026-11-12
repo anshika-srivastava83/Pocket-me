@@ -592,7 +592,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             .limit(SUMMARY_MAX_OTHER_CHATS);
 
         let system = space.instructions || '';
-        if (chatSummary && (recent || []).length >= HISTORY_LIMIT) {
+        //if (chatSummary && (recent || []).length >= HISTORY_LIMIT) {
+        if (chatSummary) {
             system += `\n\nSummary of the earlier part of this chat:\n${chatSummary}`;
         }
         if (otherChats && otherChats.length > 0) {
@@ -650,6 +651,16 @@ app.post('/api/chat', requireAuth, async (req, res) => {
                 return;
             }
             console.error('AI Error:', aiError.message);
+            const limitHit = /429|quota|rate.?limit|resource.?exhausted|too many requests/i.test(aiError.message || '');
+            if (limitHit) {
+                return res.status(429).json({
+                    success: false,
+                    chatId: activeChatId,
+                    error: settings.mode === 'own'
+                        ? 'Your Gemini or Groq key has reached its free limit. It usually resets within 24 hours. Try again later, or switch to Shared AI in Settings.'
+                        : 'The shared AI is out of free capacity right now. Try again in a bit.'
+                });
+            }
             return res.status(500).json({ success: false, chatId: activeChatId, error: aiError.message });
         }
 

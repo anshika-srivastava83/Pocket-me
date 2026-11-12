@@ -2,9 +2,43 @@ const supabase = require('./supabase');
 const { callAI } = require('./aiService');
 const { getUserSettings } = require('./userSettings');
 
-const KEEP_DAYS = 60;
+const KEEP_DAYS = 14;
+const FILE_KEEP_DAYS = 7;
+const FILE_MARK = '\n\n---\nAttached file: ';
+const FILE_STUB = 'File removed after 7 days.';
+
+// Keeps each file's name but drops its text.
+function stripFiles(content) {
+    const parts = content.split(FILE_MARK);
+    if (parts.length === 1) return null;
+    return parts
+        .map((p, i) => {
+            if (i === 0) return p;
+            const cut = p.indexOf('\n\n');
+            const name = cut === -1 ? p : p.slice(0, cut);
+            return `${name}\n\n${FILE_STUB}`;
+        })
+        .join(FILE_MARK);
+}
+
+async function removeOldAttachments() {
+    const cutoff = new Date(Date.now() - FILE_KEEP_DAYS * 86400000).toISOString();
+    const { data } = await supabase
+        .from('messages')
+        .select('id, content')
+        .eq('sender', 'user')
+        .lt('created_at', cutoff)
+        .like('content', '%Attached file:%')
+        .not('content', 'like', `%${FILE_STUB}%`)
+        .limit(500);
+    for (const m of data || []) {
+        const next = stripFiles(m.content);
+        if (next) await supabase.from('messages').update({ content: next }).eq('id', m.id);
+    }
+}
 
 async function cleanupOldMessages() {
+    await removeOldAttachments();
     await supabase
         .from('usage_log')
         .delete()
