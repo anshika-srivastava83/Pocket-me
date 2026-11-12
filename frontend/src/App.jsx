@@ -414,6 +414,8 @@ const closeSpaceForm = () => {
       openSettings();
       return;
     }
+    const previous = aiStatus;
+    setAiStatus({ ...aiStatus, mode: m });
     try {
       const res = await fetch('/api/settings', {
         method: 'PUT',
@@ -421,9 +423,14 @@ const closeSpaceForm = () => {
         body: JSON.stringify({ mode: m })
       });
       const data = await res.json().catch(() => null);
-      if (res.ok && data) setAiStatus(data);
-      else window.alert((data && data.error) || 'Could not switch.');
+      if (res.ok && data) {
+        setAiStatus(data);
+      } else {
+        setAiStatus(previous);
+        window.alert((data && data.error) || 'Could not switch.');
+      }
     } catch {
+      setAiStatus(previous);
       window.alert('Could not reach the server.');
     }
   };
