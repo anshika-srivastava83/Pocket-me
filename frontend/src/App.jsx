@@ -423,13 +423,18 @@ const closeSpaceForm = () => {
     try {
       for (const f of files) {
         const a = await fileToAttachment(f, token);
-        setAttachments((prev) => [...prev, a]);
+        setAttachments((prev) => [...prev, { ...a, id: `${Date.now()}-${Math.random()}` }]);
       }
     } catch (err) {
       setAttachError(err.message || 'Could not read that file.');
     } finally {
       setAttaching(false);
     }
+  };
+
+  const removeAttachment = (id) => {
+    setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, leaving: true } : a)));
+    setTimeout(() => setAttachments((prev) => prev.filter((a) => a.id !== id)), 180);
   };
 
   const changeMode = async (m) => {
@@ -813,24 +818,27 @@ const closeSpaceForm = () => {
                 +
               </button>
               <div className="relative flex-1">
-                {(attachments.length > 0 || attaching || attachError) && (
-                  <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
-                    {attachments.map((a, i) => (
-                      <span key={i} className="nb-label inline-flex items-center gap-2 border-2 border-ink px-2 py-1">
-                        {a.name}{a.cut ? ' (trimmed)' : ''}
-                        <button
-                          type="button"
-                          onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
-                          aria-label={`Remove ${a.name}`}
-                        >
-                          x
-                        </button>
-                      </span>
-                    ))}
-                    {attaching && <span className="nb-label">Reading file...</span>}
-                    {attachError && <span className="font-bold text-accent">{attachError}</span>}
+                <div className={`nb-attach-wrap ${attachments.length > 0 || attaching || attachError ? 'nb-attach-open' : ''}`}>
+                  <div className="nb-attach-inner">
+                    <div className="pb-2 flex flex-wrap items-center gap-2 text-sm">
+                      {attachments.map((a) => (
+                        <span key={a.id} className={`nb-file-chip nb-label ${a.leaving ? 'nb-file-chip-out' : ''}`}>
+                          <span className="truncate max-w-[40vw]">{a.name}</span>
+                          <button
+                            type="button"
+                            className="nb-file-x"
+                            onClick={() => removeAttachment(a.id)}
+                            aria-label={`Remove ${a.name}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      {attaching && <span className="nb-label">Reading file...</span>}
+                      {attachError && <span className="font-bold text-accent">{attachError}</span>}
+                    </div>
                   </div>
-                )}
+                </div>
                 <textarea
                   ref={inputRef}
                   rows={2}
