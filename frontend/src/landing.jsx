@@ -2,21 +2,20 @@ import React from 'react';
 import Snowfall from './snowfall';
 
 function ModeToggle({ mode, onChange }) {
-  if (!onChange) return null;
-  const btn = (m, label) => (
-    <button
-      type="button"
-      onClick={() => onChange(m)}
-      aria-pressed={mode === m}
-      className={`nb-btn ${mode === m ? 'nb-btn-accent' : ''}`}
-    >
-      {label}
-    </button>
-  );
+  if (!onChange || !mode) return null;
+  const shared = mode === 'shared';
   return (
-    <div className="mb-5 flex items-center gap-2">
-      {btn('shared', 'Shared AI')}
-      {btn('own', 'My keys')}
+    <div className="mb-5 flex items-center gap-3">
+      <span className="nb-label">Shared AI</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={shared}
+        aria-label="Use shared AI"
+        onClick={() => onChange(shared ? 'own' : 'shared')}
+        className="nb-switch"
+      />
+      {!shared && <span className="nb-label">Using your own keys</span>}
     </div>
   );
 }

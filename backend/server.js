@@ -26,6 +26,13 @@ const SHARED_DAILY_TOKENS = Number(process.env.SHARED_DAILY_TOKENS) || 150000;
 const MIN_USER_TOKENS = 15000;
 const approxTokens = (text) => Math.ceil((text || '').length / 4);
 
+// Saves "shared" for users who never chose, so they count in the pool split.
+async function ensureSharedSaved(userId, s) {
+    if (!s.modeSaved && s.mode === 'shared') {
+        await supabase.from('user_settings').upsert({ user_id: userId, mode: 'shared' }, { onConflict: 'user_id' });
+    }
+}
+
 async function getSharedQuota(userId) {
     const { count } = await supabase
         .from('user_settings')
@@ -609,6 +616,7 @@ const hint = (k) => (k ? `${k.slice(0, 4)}...${k.slice(-4)}` : '');
 
 async function settingsStatus(userId) {
     const s = await getUserSettings(userId);
+    await ensureSharedSaved(userId, s);
     const quota = s.mode === 'shared' ? await getSharedQuota(userId) : null;
     return {
         mode: s.mode,
@@ -736,6 +744,7 @@ app.post('/api/attachments/image', requireAuth, async (req, res) => {
         }
 
         const settings = await getUserSettings(req.user.id);
+        await ensureSharedSaved(req.user.id, settings);
         if (!settings.mode) {
             return res.status(400).json({ success: false, error: 'Open Settings and choose how to use AI first.' });
         }

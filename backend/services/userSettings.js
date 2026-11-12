@@ -16,11 +16,12 @@ async function getUserSettings(userId) {
     const ownGroqKey = safeDecrypt(data?.groq_key);
 
     // Users who saved keys before modes existed count as "own".
-    const mode = data?.mode || (ownGeminiKey || ownGroqKey ? 'own' : null);
+    const mode = data?.mode || (ownGeminiKey || ownGroqKey ? 'own' : 'shared');
     const useShared = mode === 'shared';
 
     return {
         mode,
+        modeSaved: !!data?.mode,
         geminiKey: useShared ? process.env.GEMINI_API_KEY || '' : ownGeminiKey,
         groqKey: useShared ? process.env.GROQ_API_KEY || '' : ownGroqKey,
         calendarId: data?.calendar_id || '',
