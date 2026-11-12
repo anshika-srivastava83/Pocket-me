@@ -1,12 +1,12 @@
 import React from 'react';
 import Snowfall from './snowfall';
 
-function ModeToggle({ mode, onChange }) {
+export function ModeToggle({ mode, onChange }) {
   if (!onChange || !mode) return null;
   const shared = mode === 'shared';
   return (
-    <div className="mb-5 flex items-center gap-3">
-      <span className="nb-label">Shared AI</span>
+    <div className="ml-2 flex shrink-0 items-center gap-2">
+      <span className="pm-mode-label">Shared AI</span>
       <button
         type="button"
         role="switch"
@@ -15,17 +15,15 @@ function ModeToggle({ mode, onChange }) {
         onClick={() => onChange(shared ? 'own' : 'shared')}
         className="nb-switch"
       />
-      {!shared && <span className="nb-label">Using your own keys</span>}
     </div>
   );
 }
 
-function Landing({ spaces, loaded, onOpen, mode, onModeChange }) {
+function Landing({ spaces, loaded, onOpen }) {
   return (
     <div className="relative flex-1 overflow-hidden">
       <Snowfall />
       <div className="relative z-10 h-full overflow-y-auto p-5 md:p-10">
-        <ModeToggle mode={mode} onChange={onModeChange} />
         {loaded && spaces.length === 0 ? (
           <p className="nb-label max-w-sm">No spaces yet. Open the menu and tap + to create your first one.</p>
         ) : (

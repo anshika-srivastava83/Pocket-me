@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import Login from './Login';
 import Reminders from './reminders';
-import Landing from './landing';
+import Landing, { ModeToggle } from './landing';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Drawer from './Drawer';
@@ -81,6 +81,7 @@ function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [spacesLoaded, setSpacesLoaded] = useState(false);
   const [chatsOpen, setChatsOpen] = useState(false);
+  const [chatsCollapsed, setChatsCollapsed] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newInstructions, setNewInstructions] = useState('');
@@ -511,6 +512,11 @@ const closeSpaceForm = () => {
     setDrawerOpen(false);
   };
 
+  const toggleChats = () => {
+    if (window.matchMedia('(min-width: 768px)').matches) setChatsCollapsed((c) => !c);
+    else setChatsOpen((o) => !o);
+  };
+
   const openDrawer = () => {
     window.history.pushState({ spaceId: activeSpaceId, drawer: true }, '');
     setDrawerOpen(true);
@@ -579,8 +585,8 @@ const closeSpaceForm = () => {
           <div className="ml-auto flex items-center gap-2 min-w-0">
             {!inReminders && (
               <button
-                onClick={() => setChatsOpen(true)}
-                className="nb-ghost md:hidden"
+                onClick={toggleChats}
+                className="nb-ghost"
                 aria-label="Open chats"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -600,7 +606,10 @@ const closeSpaceForm = () => {
             <span className="nb-label truncate max-w-[40vw]">{activeSpace.name}</span>
           </div>
         )}
-        </header>
+  <div className={activeSpace ? '' : 'ml-auto'}>
+          <ModeToggle mode={aiStatus?.mode} onChange={changeMode} />
+        </div>
+      </header>
 
       {showSettings && <Settings token={token} email={session?.user?.email} onClose={closeSettings} />}
       {showForm && (
@@ -651,6 +660,8 @@ const closeSpaceForm = () => {
               />
               <ChatSidebar
                 open={chatsOpen}
+                collapsed={chatsCollapsed}
+                onClose={() => setChatsOpen(false)}
                 chats={chatList}
                 activeChatId={activeChatId}
                 onSelect={(id) => {
@@ -731,7 +742,7 @@ const closeSpaceForm = () => {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={attaching}
-                className="nb-btn nb-plus"
+                className="nb-btn nb-plus mb-4"
                 aria-label="Attach files"
                 title="Attach files"
               >
@@ -769,13 +780,13 @@ const closeSpaceForm = () => {
                     }
                   }}
                   placeholder={activeSpace ? `Message in ${activeSpace.name}` : 'Type a message'}
-                  className="nb-input resize-none pr-11"
+                  className="nb-input resize-none pr-11 block"
                 />
 
                 <button
                   type="button"
                   onClick={() => setModelMenuOpen((o) => !o)}
-                  className="nb-ghost absolute right-1.5 bottom-1.5"
+                  className="nb-ghost absolute right-1.5 bottom-3"
                   aria-label="Choose model"
                   aria-expanded={modelMenuOpen}
                 >
@@ -821,11 +832,11 @@ const closeSpaceForm = () => {
               </div>
 
               {loading ? (
-                <button type="button" onClick={() => abortRef.current?.abort()} className="nb-btn">
+                <button type="button" onClick={() => abortRef.current?.abort()} className="nb-btn mb-4">
                   Stop
                 </button>
               ) : (
-                <button type="submit" className="nb-btn nb-btn-accent">
+                <button type="submit" className="nb-btn nb-btn-accent mb-4">
                   Send
                 </button>
               )}

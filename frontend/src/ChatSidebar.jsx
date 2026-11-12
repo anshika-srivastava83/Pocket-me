@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 
 function ChatSidebar({
   open,
+  collapsed,
+  onClose,
   chats,
   activeChatId,
   onSelect,
@@ -78,9 +80,16 @@ function ChatSidebar({
   );
 
   return (
-    <aside className={`nb-chats ${open ? 'nb-chats-open' : ''}`} aria-label="Chats">
+    <aside className={`nb-chats ${open ? 'nb-chats-open' : ''} ${collapsed ? 'nb-chats-collapsed' : ''}`} aria-label="Chats">
       <div className="nb-drawer-head">
-        <span className="nb-label">Chats</span>
+        <div className="flex items-center gap-2">
+          <button onClick={onClose} className="nb-ghost md:hidden" aria-label="Close chats">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+          <span className="nb-label">Chats</span>
+        </div>
         <button onClick={onNew} className="nb-ghost" aria-label="New chat">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
             <path d="M12 4v16M4 12h16" />
