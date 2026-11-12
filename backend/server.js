@@ -273,7 +273,7 @@ app.post('/api/reminders', requireAuth, async (req, res) => {
         return res.status(400).json({ success: false, error: 'A valid date and time is required.' });
     }
 
-        const { calendarId } = await getUserSettings(req.user.id);
+    const { calendarId } = await getUserSettings(req.user.id);
     if (!calendarId) {
         return res.status(400).json({ success: false, error: 'Add your Google Calendar ID in Settings first.' });
     }
@@ -489,7 +489,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             isNewChat = true;
         }
 
-                // Editing a sent message: remove it and everything after it, and rebuild the summary.
+        // Editing a sent message: remove it and everything after it, and rebuild the summary.
         if (activeChatId && replaceFromMessageId) {
             const { data: target } = await supabase
                 .from('messages')
@@ -531,7 +531,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         const history = (recent || [])
             .reverse()
             .map((m) => ({ role: m.sender === 'ai' ? 'assistant' : 'user', content: m.content }));
-            history.push({ role: 'user', content: prompt });
+        history.push({ role: 'user', content: prompt });
 
         // Background context: older part of this chat, and other chats in this space.
         const { data: otherChats } = await supabase
@@ -557,24 +557,22 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         // Save the user's message.
         const { data: savedUser, error: saveUserError } = await supabase
             .from('messages')
-            .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider })
+            .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'user', content: prompt })
             .select('id')
             .single();
         if (saveUserError) {
             return res.status(500).json({ success: false, error: saveUserError.message });
         }
 
-        // Ask the AI. If it fails, the user's message is still saved.
-                // If the browser cancels the request (Stop button), cancel the AI call too.
+        // If the browser cancels the request (Stop button), cancel the AI call too.
         const controller = new AbortController();
         res.on('close', () => {
             if (!res.writableFinished) controller.abort();
         });
 
-        // Ask the AI. If it fails, the user's message is still saved.
         const settings = await getUserSettings(req.user.id);
         const keys = { gemini: settings.geminiKey, groq: settings.groqKey };
-                if (!settings.mode) {
+        if (!settings.mode) {
             return res.status(400).json({ success: false, chatId: activeChatId, error: 'Open Settings and choose how to use AI first.' });
         }
         if (!keys.gemini && !keys.groq) {
@@ -594,6 +592,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
                 });
             }
         }
+
+        // Ask the AI. If it fails, the user's message is still saved.
         let result;
         try {
             result = await callAI(history, system, modelId, autoFallback === true, controller.signal, keys);
@@ -607,11 +607,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         }
 
         // Save the AI reply.
-        await supabase
+        const { data: savedAi } = await supabase
             .from('messages')
-            .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider });
+            .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider })
+            .select('id')
+            .single();
 
-                if (settings.mode === 'shared') {
+        if (settings.mode === 'shared') {
             const tokens =
                 approxTokens(system) +
                 history.reduce((n, m) => n + approxTokens(m.content), 0) +
@@ -817,10 +819,11 @@ if (require.main === module) {
 const { cleanupOldMessages } = require('./services/cleanup');
 
 app.post('/api/cron/cleanup', (req, res) => {
-  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  waitUntil(cleanupOldMessages());
-  res.json({ started: true });
+    if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    waitUntil(cleanupOldMessages());
+    res.json({ started: true });
 });
+
 module.exports = app;

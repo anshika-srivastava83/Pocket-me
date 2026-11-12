@@ -19,7 +19,13 @@ export default function Thinking() {
 
   return (
     <div className="pm-thinking" role="status" aria-live="polite">
-        <img src={pikachu} alt="" className="pm-pika" />
+      <div className="pm-track" aria-hidden="true">
+        <span className="pm-walker">
+          <span className="pm-flip">
+            <img src={pikachu} alt="" className="pm-pika" />
+          </span>
+        </span>
+      </div>
       <span key={i} className="nb-label">{PHRASES[i]}...</span>
     </div>
   );
