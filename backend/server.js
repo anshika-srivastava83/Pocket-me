@@ -274,15 +274,14 @@ app.post('/api/reminders', requireAuth, async (req, res) => {
     }
 
     const { calendarId } = await getUserSettings(req.user.id);
-    if (!calendarId) {
-        return res.status(400).json({ success: false, error: 'Add your Google Calendar ID in Settings first.' });
-    }
-    let eventId;
-    try {
-        eventId = await createCalendarEvent(title, remindAt, calendarId);
-    } catch (err) {
-        console.error('Google Calendar create failed:', err.response?.data?.error?.message || err.message);
-        return res.status(502).json({ success: false, error: 'Could not add the reminder to Google Calendar.' });
+    let eventId = null;
+    if (calendarId) {
+        try {
+            eventId = await createCalendarEvent(title, remindAt, calendarId);
+        } catch (err) {
+            console.error('Google Calendar create failed:', err.response?.data?.error?.message || err.message);
+            return res.status(502).json({ success: false, error: 'Could not add the reminder to Google Calendar.' });
+        }
     }
 
     const { data, error } = await supabase
@@ -293,10 +292,10 @@ app.post('/api/reminders', requireAuth, async (req, res) => {
 
     if (error) {
         console.error('Create reminder failed:', error.message);
-        await deleteCalendarEvent(eventId, calendarId).catch(() => {});
+        if (eventId) await deleteCalendarEvent(eventId, calendarId).catch(() => {});
         return res.status(500).json({ success: false, error: error.message });
     }
-    res.json(data);
+    res.json({ ...data, synced: Boolean(eventId) });
 });
 
 app.delete('/api/reminders/:id', requireAuth, async (req, res) => {
@@ -613,12 +612,14 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             .select('id')
             .single();
 
+        let quota = null;
         if (settings.mode === 'shared') {
             const tokens =
                 approxTokens(system) +
                 history.reduce((n, m) => n + approxTokens(m.content), 0) +
                 approxTokens(result.text);
             await supabase.from('usage_log').insert({ user_id: req.user.id, tokens });
+            quota = await getSharedQuota(req.user.id);
         }
 
         // Update the summary in the background. The reply does not wait for it.
@@ -638,7 +639,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             userMessageId: savedUser?.id,
             aiMessageId: savedAi?.id,
             provider: result.provider,
-            response: result.text
+            response: result.text,
+            quota
         });
     } catch (error) {
         console.error('Chat route error:', error.message);

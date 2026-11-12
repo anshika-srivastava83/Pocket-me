@@ -5,7 +5,7 @@ function Reminders({ token }) {
   const [title, setTitle] = useState('');
   const [when, setWhen] = useState('');
   const [error, setError] = useState('');
-
+  const [note, setNote] = useState('');
   useEffect(() => {
     fetch('/api/reminders', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => res.json())
@@ -35,6 +35,7 @@ function Reminders({ token }) {
     );
     setTitle('');
     setWhen('');
+    setNote(data.synced === false ? 'Saved in Pocket Me only. Add a Calendar ID in Settings for Google Calendar alerts.' : '');
   };
 
   const deleteReminder = async (id) => {
@@ -72,6 +73,7 @@ function Reminders({ token }) {
       </form>
 
       {error && <p className="text-sm font-bold text-accent">{error}</p>}
+      {note && <p className="nb-label">{note}</p>}
 
       {reminders.length === 0 ? (
         <p className="nb-label">No reminders yet</p>

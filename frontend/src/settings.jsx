@@ -131,7 +131,10 @@ function Settings({ token, email, onClose }) {
 
   const calendarSection = (
     <div className="space-y-2">
-      <p className="nb-label">Your Calendar ID (for reminders)</p>
+      <p className="nb-label">Your Calendar ID (optional)</p>
+      <p className="text-sm">
+        Skip this and reminders are still saved in Pocket Me. Add it if you also want them in Google Calendar with phone alerts.
+      </p>
       <input
         type="text"
         value={calendarId}

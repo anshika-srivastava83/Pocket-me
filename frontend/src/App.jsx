@@ -505,6 +505,17 @@ const closeSpaceForm = () => {
       });
       const data = await res.json();
 
+      if (data.quota && data.quota.budget > 0) {
+        const pct = data.quota.used / data.quota.budget;
+        if (pct >= 0.8) {
+          showNotice(
+            pct >= 1
+              ? 'You have used your full shared AI limit. Switch to your own keys in Settings to keep going.'
+              : `You have used ${Math.round(pct * 100)}% of your shared AI limit. Switch to your own keys in Settings to remove it.`
+          );
+        }
+      }
+
       // A new chat was created on the server: remember it and add it to the list.
       if (data.chatId && !activeChatId) {
         setActiveChatId(data.chatId);
