@@ -401,3 +401,21 @@ input[type="checkbox"] { accent-color: #111111; width: 1rem; height: 1rem; }
 @media (max-width: 767px) {
   .nb-chats { will-change: transform; }
 }
+
+/* Small message bar */
+.pm-toast {
+  position: fixed;
+  left: 50%;
+  translate: -50% 0;
+  bottom: 24px;
+  z-index: 60;
+  max-width: 90vw;
+  background: var(--ink);
+  color: var(--surface);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  padding: 0.7rem 1rem;
+  border-radius: 4px;
+  box-shadow: 4px 4px 0 var(--accent);
+  animation: fadeUp 0.25s ease-out both;
+}

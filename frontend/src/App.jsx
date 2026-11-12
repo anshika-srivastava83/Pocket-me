@@ -90,7 +90,15 @@ function App() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [chatError, setChatError] = useState('');
-  const [copiedIndex, setCopiedIndex] = useState(null);
+    const [copiedIndex, setCopiedIndex] = useState(null);
+  const [notice, setNotice] = useState('');
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editText, setEditText] = useState('');
+
+  const showNotice = (text) => {
+    setNotice(text);
+    setTimeout(() => setNotice(''), 4000);
+  };
   const [showSettings, setShowSettings] = useState(false);
   const [aiStatus, setAiStatus] = useState(null);
   const [attachments, setAttachments] = useState([]);
@@ -206,7 +214,7 @@ function App() {
       const res = await fetch(`/api/chats/${chatId}/messages`, { headers: { Authorization: `Bearer ${token}` } });
       const list = await res.json();
       if (Array.isArray(list)) {
-        setMessages(list.map((m) => ({ sender: m.sender, text: m.content, provider: m.provider })));
+        setMessages(list.map((m) => ({ id: m.id, sender: m.sender, text: m.content, provider: m.provider })));
       }
     } catch (err) {
       setMessages([{ sender: 'ai', text: 'Could not load this chat.' }]);
@@ -281,9 +289,25 @@ function App() {
     }
   };
 
-  const editMessage = (text) => {
-    setInput(text);
-    inputRef.current?.focus();
+  const startEdit = (index, text) => {
+    if (loading) return;
+    setEditingIndex(index);
+    setEditText(text);
+  };
+
+  const cancelEdit = () => {
+    setEditingIndex(null);
+    setEditText('');
+  };
+
+  const saveEdit = () => {
+    if (loading || editingIndex === null || !editText.trim()) return;
+    const index = editingIndex;
+    const replaceId = messages[index]?.id;
+    if (replaceId) setMessages((prev) => prev.slice(0, index));
+    const text = editText;
+    cancelEdit();
+    sendText(text, replaceId);
   };
 
   const startNewChat = () => {
@@ -427,15 +451,15 @@ const closeSpaceForm = () => {
         setAiStatus(data);
       } else {
         setAiStatus(previous);
-        window.alert((data && data.error) || 'Could not switch.');
+        showNotice((data && data.error) || 'Could not switch. Try again.');
       }
     } catch {
       setAiStatus(previous);
-      window.alert('Could not reach the server.');
+      showNotice('Could not reach the server. Try again.');
     }
   };
 
-  const sendText = async (text) => {
+  const sendText = async (text, replaceId) => {
     if (!text.trim() || !activeSpaceId || loading) return;
 
     const userMessage = text;
@@ -455,7 +479,8 @@ const closeSpaceForm = () => {
           modelId: selectedModel,
           autoFallback: autoFallback,
           spaceId: activeSpaceId,
-          chatId: activeChatId
+          chatId: activeChatId,
+          replaceFromMessageId: replaceId
         })
       });
       const data = await res.json();
@@ -466,8 +491,17 @@ const closeSpaceForm = () => {
         setChatList((prev) => [{ id: data.chatId, title: userMessage.slice(0, 50) }, ...prev]);
       }
 
-      if (data.success) {
-        setMessages((prev) => [...prev, { sender: 'ai', text: data.response, provider: data.provider }]);
+            if (data.success) {
+        setMessages((prev) => {
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].sender === 'user') {
+              next[i] = { ...next[i], id: data.userMessageId };
+              break;
+            }
+          }
+          return [...next, { sender: 'ai', text: data.response, provider: data.provider, id: data.aiMessageId }];
+        });
       } else {
         setMessages((prev) => [...prev, { sender: 'ai', text: `Error: ${data.error}` }]);
       }
@@ -654,6 +688,8 @@ const closeSpaceForm = () => {
         </form>
       )}
 
+      {notice && <div className="pm-toast" role="alert">{notice}</div>}
+
       {!activeSpaceId ? (
         spacesLoaded ? <Landing spaces={spaces} loaded={spacesLoaded} onOpen={openSpace} mode={aiStatus?.mode} onModeChange={changeMode} /> : <CardsSkeleton />
       ) : (
@@ -707,7 +743,28 @@ const closeSpaceForm = () => {
                       msg.sender === 'user' ? 'nb-msg-user whitespace-pre-wrap' : 'nb-msg-ai'
                     }`}
                   >
-                    {msg.sender === 'user' ? (
+                    {msg.sender === 'user' && editingIndex === index ? (
+                      <div className="space-y-2 w-[70vw] max-w-full">
+                        <textarea
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                              e.preventDefault();
+                              saveEdit();
+                            }
+                            if (e.key === 'Escape') cancelEdit();
+                          }}
+                          autoFocus
+                          rows={3}
+                          className="nb-input"
+                        />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={saveEdit} className="nb-btn nb-btn-accent">Send</button>
+                          <button type="button" onClick={cancelEdit} className="nb-btn">Cancel</button>
+                        </div>
+                      </div>
+                    ) : msg.sender === 'user' ? (
                       <UserMessage text={msg.text} />
                     ) : (
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -721,7 +778,7 @@ const closeSpaceForm = () => {
                       </button>
                       {msg.sender === 'user' && (
                         <>
-                          <button type="button" onClick={() => editMessage(msg.text)} className="nb-msg-action" aria-label="Edit" title="Edit">
+                          <button type="button" onClick={() => startEdit(index, msg.text)} className="nb-msg-action" aria-label="Edit" title="Edit">
                             <EditIcon />
                           </button>
                           <button type="button" onClick={() => sendText(msg.text)} disabled={loading} className="nb-msg-action" aria-label="Resend" title="Resend">

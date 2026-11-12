@@ -432,7 +432,7 @@ app.delete('/api/chats/:chatId', requireAuth, async (req, res) => {
 // Send a message. Creates a new chat if no chatId is given.
 app.post('/api/chat', requireAuth, async (req, res) => {
     try {
-        const { prompt, modelId, autoFallback, spaceId, chatId } = req.body;
+        const { prompt, modelId, autoFallback, spaceId, chatId, replaceFromMessageId } = req.body;
 
         if (!prompt || !prompt.trim()) {
             return res.status(400).json({ success: false, error: 'Prompt is required.' });
@@ -489,6 +489,36 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             isNewChat = true;
         }
 
+                // Editing a sent message: remove it and everything after it, and rebuild the summary.
+        if (activeChatId && replaceFromMessageId) {
+            const { data: target } = await supabase
+                .from('messages')
+                .select('created_at')
+                .eq('id', replaceFromMessageId)
+                .eq('chat_id', activeChatId)
+                .eq('user_id', req.user.id)
+                .maybeSingle();
+            if (!target) {
+                return res.status(404).json({ success: false, error: 'Message not found.' });
+            }
+            const { error: cutError } = await supabase
+                .from('messages')
+                .delete()
+                .eq('chat_id', activeChatId)
+                .eq('user_id', req.user.id)
+                .gte('created_at', target.created_at);
+            if (cutError) {
+                return res.status(500).json({ success: false, error: cutError.message });
+            }
+            await supabase
+                .from('chats')
+                .update({ summary: '', summarized_count: 0 })
+                .eq('id', activeChatId)
+                .eq('user_id', req.user.id);
+            chatSummary = '';
+            summarizedCount = 0;
+        }
+
         // Load the most recent messages, then put them in the right order.
         const { data: recent } = await supabase
             .from('messages')
@@ -525,9 +555,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
         }
 
         // Save the user's message.
-        const { error: saveUserError } = await supabase
+        const { data: savedUser, error: saveUserError } = await supabase
             .from('messages')
-            .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'user', content: prompt });
+            .insert({ chat_id: activeChatId, user_id: req.user.id, sender: 'ai', content: result.text, provider: result.provider })
+            .select('id')
+            .single();
         if (saveUserError) {
             return res.status(500).json({ success: false, error: saveUserError.message });
         }
@@ -601,6 +633,8 @@ app.post('/api/chat', requireAuth, async (req, res) => {
             success: true,
             chatId: activeChatId,
             isNewChat,
+            userMessageId: savedUser?.id,
+            aiMessageId: savedAi?.id,
             provider: result.provider,
             response: result.text
         });
